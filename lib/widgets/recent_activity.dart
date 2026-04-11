@@ -1,129 +1,187 @@
 import 'package:flutter/material.dart';
 
 class RecentActivity extends StatelessWidget {
-  const RecentActivity({Key? key}) : super(key: key);
+  final List<Activity> activities;
+
+  const RecentActivity({
+    Key? key,
+    this.activities = const [
+      Activity(
+        id: '1',
+        action: 'Product Added',
+        description: 'Dell Monitor 27" added to GI Department',
+        timestamp: '2 hours ago',
+        type: ActivityType.added,
+        icon: Icons.add_circle_outlined,
+      ),
+      Activity(
+        id: '2',
+        action: 'Low Stock Alert',
+        description: 'USB-C Cable stock level below threshold',
+        timestamp: '4 hours ago',
+        type: ActivityType.alert,
+        icon: Icons.warning_outlined,
+      ),
+      Activity(
+        id: '3',
+        action: 'Product Updated',
+        description: 'Wireless Mouse quantity updated to 45 units',
+        timestamp: '6 hours ago',
+        type: ActivityType.updated,
+        icon: Icons.edit_outlined,
+      ),
+      Activity(
+        id: '4',
+        action: 'Product Removed',
+        description: 'Old keyboard removed from inventory',
+        timestamp: '1 day ago',
+        type: ActivityType.removed,
+        icon: Icons.delete_outline,
+      ),
+    ],
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    const List<ActivityItem> activities = [
-      ActivityItem(
-        title: 'Added Wireless Mouse',
-        time: '2h ago',
-        icon: Icons.add_circle_outline,
-        color: Color(0xFF3B82F6),
-      ),
-      ActivityItem(
-        title: 'Scanned Laptop Stand',
-        time: '5h ago',
-        icon: Icons.qr_code_2,
-        color: Color(0xFF3B82F6),
-      ),
-      ActivityItem(
-        title: 'Updated USB-C Cable',
-        time: '1d ago',
-        icon: Icons.inventory_2_outlined,
-        color: Color(0xFF3B82F6),
-      ),
-      ActivityItem(
-        title: 'Ordered Monitor 27"',
-        time: '2d ago',
-        icon: Icons.shopping_cart_outlined,
-        color: Color(0xFF3B82F6),
-      ),
-    ];
+    return ListView.builder(
+      itemCount: activities.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemBuilder: (context, index) {
+        final activity = activities[index];
+        final isLast = index == activities.length - 1;
 
-    return Column(
-      children: List.generate(
-        activities.length,
-        (index) {
-          final activity = activities[index];
-          return Padding(
-            padding:
-                EdgeInsets.only(bottom: index < activities.length - 1 ? 12 : 0),
-            child: _ActivityTile(activity: activity),
-          );
-        },
-      ),
+        return _ActivityItem(
+          activity: activity,
+          isLast: isLast,
+        );
+      },
     );
   }
 }
 
-class ActivityItem {
-  final String title;
-  final String time;
-  final IconData icon;
-  final Color color;
+class _ActivityItem extends StatelessWidget {
+  final Activity activity;
+  final bool isLast;
 
-  const ActivityItem({
-    required this.title,
-    required this.time,
-    required this.icon,
-    required this.color,
+  const _ActivityItem({
+    required this.activity,
+    required this.isLast,
   });
-}
 
-class _ActivityTile extends StatelessWidget {
-  final ActivityItem activity;
-
-  const _ActivityTile({required this.activity});
+  Color _getActivityColor() {
+    switch (activity.type) {
+      case ActivityType.added:
+        return const Color(0xFF16A34A);
+      case ActivityType.alert:
+        return const Color(0xFFF97316);
+      case ActivityType.updated:
+        return const Color(0xFF3B82F6);
+      case ActivityType.removed:
+        return const Color(0xFFEF4444);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: activity.color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              activity.icon,
-              color: activity.color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline dot and line
+            Column(
               children: [
-                Text(
-                  activity.title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _getActivityColor().withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    activity.icon,
+                    color: _getActivityColor(),
+                    size: 18,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  activity.time,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
+                if (!isLast)
+                  Container(
+                    width: 2,
+                    height: 40,
+                    color: Theme.of(context).colorScheme.outline,
+                    margin: const EdgeInsets.only(top: 8),
+                  ),
               ],
             ),
-          ),
-          // Arrow
-          Icon(
-            Icons.chevron_right,
-            color: Theme.of(context).colorScheme.outline,
-            size: 20,
-          ),
-        ],
-      ),
+            const SizedBox(width: 12),
+            // Activity content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.action,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      activity.description,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withOpacity(0.7),
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      activity.timestamp,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withOpacity(0.5),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
+}
+
+enum ActivityType {
+  added,
+  alert,
+  updated,
+  removed,
+}
+
+class Activity {
+  final String id;
+  final String action;
+  final String description;
+  final String timestamp;
+  final ActivityType type;
+  final IconData icon;
+
+  const Activity({
+    required this.id,
+    required this.action,
+    required this.description,
+    required this.timestamp,
+    required this.type,
+    required this.icon,
+  });
 }
