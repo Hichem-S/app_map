@@ -15,6 +15,16 @@ dependencies:
   flutter_map: ^6.0.0
   latlong2: ^0.9.0
   provider: ^6.0.5
+  url_launcher: ^6.2.4
+  http: ^1.2.0
+  webview_flutter: ^4.7.0               # REST API calls
+  web_socket_channel: ^2.4.0   # WebSocket
+  shared_preferences: ^2.2.2   # Save JWT token locally
+  mqtt_client: ^10.0.0
+  google_sign_in: ^6.2.1
+  image_picker: ^1.0.7
+  mobile_scanner: ^5.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

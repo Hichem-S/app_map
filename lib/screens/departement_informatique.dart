@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Département GI',
+      title: 'GI Department',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B5BDB)),
@@ -85,7 +85,7 @@ class DepartementGIScreen extends StatelessWidget {
     ),
     RoomItem(
       id: 'A201',
-      name: 'Bureau Département GI',
+      name: 'GI Department Office',
       bloc: 'Bloc A',
       etage: 2,
       equipCount: 1,
@@ -419,7 +419,7 @@ class DepartementGIScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Salles du département',
+              'Department Rooms',
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -460,7 +460,7 @@ class DepartementGIScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Responsable du Département',
+            'Department Head',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -503,7 +503,7 @@ class DepartementGIScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Chef de département — GI',
+                    'Department Head — GI',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.black45,

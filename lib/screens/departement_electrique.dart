@@ -64,7 +64,7 @@ class DepartementGEScreen extends StatelessWidget {
     ),
     RoomItem(
       id: 'B201',
-      name: 'Bureau Département GE',
+      name: 'GE Department Office',
       bloc: 'Bloc B',
       etage: 2,
       equipCount: 1,
@@ -374,7 +374,7 @@ class DepartementGEScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Salles du département',
+              'Department Rooms',
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -415,7 +415,7 @@ class DepartementGEScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Responsable du Département',
+            'Department Head',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -458,7 +458,7 @@ class DepartementGEScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Chef de département — GE',
+                    'Department Head — GE',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.black45,

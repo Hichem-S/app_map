@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
@@ -17,6 +18,7 @@ import 'screens/departement_gestion.dart' as dept_tc;
 import 'screens/administration_screen.dart' as dept_adm;
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),

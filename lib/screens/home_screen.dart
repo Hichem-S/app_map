@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+// import 'webview_screen.dart';
 import '../widgets/quick_action_card.dart';
-import '../widgets/inventory_section.dart';
 import '../widgets/overview_stats.dart';
 import '../widgets/recent_activity.dart';
 import '../widgets/profile_header.dart';
@@ -18,8 +19,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -109,6 +108,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // AirTag Tracking Button
+                  QuickActionCard(
+                    title: 'AirTag Tracker',
+                    subtitle: 'Track DIY GPS devices',
+                    icon: Icons.bluetooth_searching,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF06B6D4), Color(0xFF0891B2)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    onTap: () async {
+                      const url = 'https://dchristl.github.io/macless-haystack/';
+                      if (await canLaunchUrl(Uri.parse(url))) {
+                        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not launch tracker link')),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 32),
 

@@ -30,7 +30,7 @@ class InventaireCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
                     Text(
-                      'Institut Supérieur des Études Technologiques',
+                      'Higher Institute of Technological Studies',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -38,7 +38,7 @@ class InventaireCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Inventaire ISET',
+                      'ISET Inventory',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -47,7 +47,7 @@ class InventaireCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Hiérarchie complète · QR · Traçabilité',
+                      'Full hierarchy · QR · Traceability',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -82,7 +82,7 @@ class InventaireCard extends StatelessWidget {
               Expanded(
                 child: _NavButton(
                   title: 'Vue Institut',
-                  subtitle: 'Départements & QR',
+                  subtitle: 'Departments & QR',
                   onTap: () {
                     Navigator.pushNamed(context, '/vueinstitut');
                   },
@@ -93,7 +93,7 @@ class InventaireCard extends StatelessWidget {
               Expanded(
                 child: _NavButton(
                   title: 'Scanner QR',
-                  subtitle: 'Hiérarchique',
+                  subtitle: 'Hierarchical',
                   onTap: () {
                     Navigator.pushNamed(context, '/scan_qr_hiearchique');
                   },

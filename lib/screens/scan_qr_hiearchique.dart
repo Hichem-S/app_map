@@ -115,13 +115,13 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
   final List<QRTypeInfo> _qrTypes = const [
     QRTypeInfo(
       title: 'QR ISET',
-      subtitle: 'Affiche tous les départements',
+      subtitle: 'Shows all departments',
       emoji: '🏫',
       backgroundColor: Color(0xFFEFF6FF),
     ),
     QRTypeInfo(
       title: 'QR Département',
-      subtitle: 'Liste les salles et équipements',
+      subtitle: 'Lists rooms and equipment',
       emoji: '🏢',
       backgroundColor: Color(0xFFF5F3FF),
     ),
@@ -359,7 +359,7 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
                     child: TextField(
                       controller: _inputController,
                       decoration: const InputDecoration(
-                        hintText: 'Coller payload JSON ou ID QR...',
+                        hintText: 'Paste JSON payload or QR ID...',
                         hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                         border: InputBorder.none,
                         isDense: true,
@@ -475,7 +475,7 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            'Utilisez les boutons de scan rapide ou entrez un payload JSON pour naviguer dans la hiérarchie ISET',
+            'Use the quick scan buttons or enter a JSON payload to navigate the ISET hierarchy',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,

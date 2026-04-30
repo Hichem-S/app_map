@@ -81,7 +81,7 @@ final _departments = [
   ),
   const DepartmentData(
     code: 'TC',
-    name: 'Techniques de Commerce',
+    name: 'Commerce Techniques',
     description:
         'Business & Commerce Techniques — Marketing, Finance & Logistics',
     color: Color(0xFF059669),
@@ -242,7 +242,7 @@ class _HeroHeader extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Institut Supérieur des Études Technologiques de Mahdia',
+              'Higher Institute of Technological Studies of Mahdia',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
@@ -494,7 +494,7 @@ class _QrSection extends StatelessWidget {
           code: 'GE', name: 'Génie Électrique', color: const Color(0xFFF97316)),
       _QrItem(
           code: 'TC',
-          name: 'Techniques de Commerce',
+          name: 'Commerce Techniques',
           color: const Color(0xFF059669)),
       _QrItem(
           code: 'ADM',
@@ -509,7 +509,7 @@ class _QrSection extends StatelessWidget {
           children: const [
             Icon(Icons.qr_code_2, color: Color(0xFF4F46E5), size: 20),
             SizedBox(width: 8),
-            Text('QR Codes Départements',
+            Text('Department QR Codes',
                 style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,

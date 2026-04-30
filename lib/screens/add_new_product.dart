@@ -1,26 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Inventory App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        scaffoldBackgroundColor: const Color(0xFFF5F6FA),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4F46E5)),
-      ),
-      home: const AddNewProductScreen(),
-    );
-  }
-}
+import 'package:image_picker/image_picker.dart';
+import '../services/api_service.dart';
 
 class AddNewProductScreen extends StatefulWidget {
   const AddNewProductScreen({super.key});
@@ -30,7 +11,6 @@ class AddNewProductScreen extends StatefulWidget {
 }
 
 class _AddNewProductScreenState extends State<AddNewProductScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _itemNameController = TextEditingController();
   final _skuController = TextEditingController();
   final _barcodeController = TextEditingController();
@@ -38,38 +18,40 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   final _tagsController = TextEditingController();
   final _quantityController = TextEditingController(text: '0');
   final _priceController = TextEditingController(text: '0.00');
-  final _minStockController = TextEditingController();
-  final _maxStockController = TextEditingController();
   final _shelfBinController = TextEditingController();
-  final _supplierNameController = TextEditingController();
 
-  String? _selectedCategory;
+  String? _selectedCategoryId;
   String? _selectedZone;
   int _descriptionLength = 0;
+  XFile? _pickedXFile;
+  Uint8List? _imageBytes;
+  bool _isLoading = false;
+  bool _skuIsAuto = true;
 
-  final List<String> _categories = [
-    'Electronics',
-    'Clothing',
-    'Food & Beverage',
-    'Office Supplies',
-    'Tools & Hardware',
-    'Health & Beauty',
-    'Sports & Outdoors',
-    'Other',
-  ];
-
-  final List<String> _zones = ['A', 'B', 'C', 'D', 'E', 'F'];
+  List<Map<String, String>> _categories = [];
 
   static const _gradientColors = [Color(0xFF4F46E5), Color(0xFF7C3AED)];
+  final List<String> _zones = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   @override
   void initState() {
     super.initState();
-    _descriptionController.addListener(() {
-      setState(() {
-        _descriptionLength = _descriptionController.text.length;
-      });
-    });
+    _descriptionController.addListener(
+      () => setState(() => _descriptionLength = _descriptionController.text.length),
+    );
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final data = await ApiService.getCategories();
+      if (data['success'] == true && mounted) {
+        final list = (data['data'] as List)
+            .map((c) => {'id': c['id'].toString(), 'name': c['name'].toString()})
+            .toList();
+        setState(() => _categories = list);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -81,55 +63,173 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     _tagsController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
-    _minStockController.dispose();
-    _maxStockController.dispose();
     _shelfBinController.dispose();
-    _supplierNameController.dispose();
     super.dispose();
   }
 
-  void _autoGenerateSku() {
-    final name = _itemNameController.text.trim();
-    if (name.isNotEmpty) {
-      final prefix =
-          name.substring(0, name.length >= 2 ? 2 : name.length).toUpperCase();
-      final number = (1000 + DateTime.now().millisecond).toString();
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 80);
+    if (picked != null && mounted) {
+      final bytes = await picked.readAsBytes();
       setState(() {
-        _skuController.text = '$prefix-$number';
-      });
-    } else {
-      final number = DateTime.now().millisecondsSinceEpoch % 10000;
-      setState(() {
-        _skuController.text = 'SKU-$number';
+        _pickedXFile = picked;
+        _imageBytes = bytes;
       });
     }
   }
+
+  void _autoGenerateSku() {
+    setState(() {
+      _skuIsAuto = true;
+      _skuController.clear();
+    });
+  }
+
+  Future<void> _submit() async {
+    final name = _itemNameController.text.trim();
+    if (name.isEmpty) {
+      _snack('Item name is required');
+      return;
+    }
+    if (_selectedCategoryId == null) {
+      _snack('Please select a type');
+      return;
+    }
+
+    final qty = int.tryParse(_quantityController.text) ?? 0;
+    final price = double.tryParse(_priceController.text);
+    final tags = _tagsController.text.trim().isEmpty
+        ? <String>[]
+        : _tagsController.text.split(',').map((t) => t.trim()).toList();
+
+    final location = [
+      if (_selectedZone != null) 'Zone $_selectedZone',
+      if (_shelfBinController.text.trim().isNotEmpty) _shelfBinController.text.trim(),
+    ].join(' – ');
+
+    setState(() => _isLoading = true);
+    try {
+      final data = await ApiService.createProduct(
+        name: name,
+        sku: _skuIsAuto ? null : _skuController.text.trim(),
+        type: _selectedCategoryId,
+        barcode: _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        tags: tags.isEmpty ? null : tags,
+        quantity: qty,
+        price: price,
+        storageLocation: location.isEmpty ? null : location,
+        photo: _pickedXFile,
+      );
+
+      if (!mounted) return;
+
+      if (data['success'] == true) {
+        final product = data['data'];
+        _showSuccessDialog(product);
+      } else {
+        _snack(data['message'] ?? 'Failed to add product');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _snack('Connection error. Check your network.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSuccessDialog(Map product) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Color(0xFF4F46E5)),
+            SizedBox(width: 8),
+            Text('Product Added!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(product['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('SKU: ${product['sku'] ?? ''}', style: const TextStyle(color: Color(0xFF707070))),
+            const SizedBox(height: 12),
+            const Text('A QR code has been generated for this product.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF707070))),
+            const SizedBox(height: 8),
+            FutureBuilder<String?>(
+              future: ApiService.getToken(),
+              builder: (context, snap) {
+                if (!snap.hasData) return const CircularProgressIndicator();
+                return Image.network(
+                  ApiService.productQrUrl(product['id']),
+                  height: 150,
+                  width: 150,
+                  headers: {'Authorization': 'Bearer ${snap.data}'},
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.qr_code, size: 80, color: Color(0xFF4F46E5)),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+            child: const Text('Done', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _snack(String msg) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+  // ─── UI helpers ─────────────────────────────────────────────────────────────
 
   Widget _buildSectionHeader(String title, IconData icon) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: _gradientColors,
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        gradient: const LinearGradient(colors: _gradientColors),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
           Icon(icon, color: Colors.white, size: 20),
           const SizedBox(width: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
+          Text(title,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLabel(String label, {bool required = false, bool optional = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E1E2E))),
+          if (required)
+            const Text(' *', style: TextStyle(color: Color(0xFFE53E3E), fontWeight: FontWeight.w700)),
+          if (optional)
+            const Text('  (Optional)',
+                style: TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
         ],
       ),
     );
@@ -147,72 +247,29 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F1F5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.transparent),
-      ),
+          color: const Color(0xFFF0F1F5), borderRadius: BorderRadius.circular(12)),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
         readOnly: readOnly,
         maxLength: maxLength,
-        style: const TextStyle(
-          fontSize: 14,
-          color: Color(0xFF1E1E2E),
-          fontWeight: FontWeight.w500,
-        ),
+        style: const TextStyle(fontSize: 14, color: Color(0xFF1E1E2E)),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(
-            color: Color(0xFFAAAAAA),
-            fontSize: 14,
-          ),
+          hintStyle: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
           prefixIcon: prefixIcon != null
               ? Icon(prefixIcon, color: const Color(0xFF9090A0), size: 18)
               : prefix,
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           counterText: '',
         ),
       ),
     );
   }
 
-  Widget _buildLabel(String label,
-      {bool required = false, bool optional = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1E1E2E),
-            ),
-          ),
-          if (required)
-            const Text(
-              ' *',
-              style: TextStyle(
-                  color: Color(0xFFE53E3E), fontWeight: FontWeight.w700),
-            ),
-          if (optional)
-            const Text(
-              '  (Optional)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFFAAAAAA),
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  // ─── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -228,96 +285,30 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
                       children: [
                         GestureDetector(
                           onTap: () => Navigator.maybePop(context),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            child: const Icon(Icons.arrow_back,
-                                color: Color(0xFF1E1E2E), size: 22),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(Icons.arrow_back, color: Color(0xFF1E1E2E), size: 22),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Add New Product',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1E1E2E),
-                                ),
-                              ),
+                            children: [
+                              Text('Add New Product',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1E1E2E))),
                               SizedBox(height: 2),
-                              Text(
-                                'Manual Entry · View-only after saving',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF9090A0),
-                                ),
-                              ),
+                              Text('Fill in the details below',
+                                  style: TextStyle(fontSize: 12, color: Color(0xFF9090A0))),
                             ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFF4F46E5)),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: const [
-                              Icon(Icons.lock_outline,
-                                  size: 14, color: Color(0xFF4F46E5)),
-                              SizedBox(width: 6),
-                              Text(
-                                'Add Only',
-                                style: TextStyle(
-                                  color: Color(0xFF4F46E5),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Info banner
-                  Container(
-                    width: double.infinity,
-                    color: const Color(0xFF4F46E5),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Icon(Icons.shield_outlined,
-                            color: Colors.white, size: 18),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              style:
-                                  TextStyle(color: Colors.white, fontSize: 13),
-                              children: [
-                                TextSpan(text: 'Products can be '),
-                                TextSpan(
-                                  text: 'added and viewed',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                TextSpan(
-                                    text:
-                                        ' only. Modifications and deletions are restricted.'),
-                              ],
-                            ),
                           ),
                         ),
                       ],
@@ -328,77 +319,64 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
             ),
           ),
 
-          // Scrollable content
+          // Scrollable form
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Basic Information ──
-                  _buildSectionHeader(
-                      'Basic Information', Icons.inventory_2_outlined),
+                  // ── Basic Information ──────────────────────────────────────
+                  _buildSectionHeader('Basic Information', Icons.inventory_2_outlined),
                   const SizedBox(height: 20),
 
                   // Product Image
-                  const Text(
-                    'Product Image',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1E1E2E)),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFF4F46E5),
-                        width: 1.5,
-                        style: BorderStyle.solid,
+                  _buildLabel('Product Image', optional: true),
+                  GestureDetector(
+                    onTap: () => _showImageSourceSheet(),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF4F46E5), width: 1.5),
                       ),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(Icons.camera_alt_outlined,
-                              color: Color(0xFF4F46E5), size: 30),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Add Product Photo',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: Color(0xFF1E1E2E)),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'PNG, JPG up to 10MB',
-                          style:
-                              TextStyle(fontSize: 12, color: Color(0xFF9090A0)),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildImageButton(
-                                Icons.camera_alt_outlined, 'Camera'),
-                            const SizedBox(width: 12),
-                            _buildImageButton(
-                                Icons.photo_library_outlined, 'Gallery'),
-                          ],
-                        ),
-                      ],
+                      child: _imageBytes != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.memory(_imageBytes!, height: 160, fit: BoxFit.cover),
+                            )
+                          : Column(
+                              children: [
+                                Container(
+                                  width: 64, height: 64,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEEF2FF),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(Icons.camera_alt_outlined,
+                                      color: Color(0xFF4F46E5), size: 30),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text('Add Product Photo',
+                                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                const SizedBox(height: 4),
+                                const Text('PNG, JPG up to 5MB',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF9090A0))),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _buildImageButton(Icons.camera_alt_outlined, 'Camera',
+                                        () => _pickImage(ImageSource.camera)),
+                                    const SizedBox(width: 12),
+                                    _buildImageButton(Icons.photo_library_outlined, 'Gallery',
+                                        () => _pickImage(ImageSource.gallery)),
+                                  ],
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -406,10 +384,9 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   // Item Name
                   _buildLabel('Item Name', required: true),
                   _buildTextField(
-                    controller: _itemNameController,
-                    hint: 'e.g., Wireless Mouse',
-                    prefixIcon: Icons.inventory_2_outlined,
-                  ),
+                      controller: _itemNameController,
+                      hint: 'e.g., Wireless Mouse',
+                      prefixIcon: Icons.inventory_2_outlined),
                   const SizedBox(height: 16),
 
                   // SKU
@@ -419,27 +396,30 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                       Expanded(
                         child: _buildTextField(
                           controller: _skuController,
-                          hint: 'E.G., EL-0042',
+                          hint: _skuIsAuto ? 'Auto-generated by server' : 'e.g., ISET-INFO-001',
                           prefixIcon: Icons.tag,
+                          readOnly: _skuIsAuto,
                         ),
                       ),
                       const SizedBox(width: 10),
                       GestureDetector(
-                        onTap: _autoGenerateSku,
+                        onTap: () => setState(() {
+                          _skuIsAuto = !_skuIsAuto;
+                          if (_skuIsAuto) _skuController.clear();
+                        }),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _skuIsAuto ? const Color(0xFF4F46E5) : Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFDDDDEE)),
+                            border: Border.all(color: const Color(0xFF4F46E5)),
                           ),
-                          child: const Text(
-                            'Auto-generate',
+                          child: Text(
+                            _skuIsAuto ? 'Manual' : 'Auto',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E1E2E),
+                              color: _skuIsAuto ? Colors.white : const Color(0xFF4F46E5),
                             ),
                           ),
                         ),
@@ -448,67 +428,59 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Category
-                  _buildLabel('Category', required: true),
+                  // Type
+                  _buildLabel('Type', required: true),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F1F5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        color: const Color(0xFFF0F1F5),
+                        borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: _selectedCategory,
+                        value: _selectedCategoryId,
                         hint: Row(
                           children: const [
-                            Icon(Icons.label_outline,
-                                color: Color(0xFF9090A0), size: 18),
+                            Icon(Icons.label_outline, color: Color(0xFF9090A0), size: 18),
                             SizedBox(width: 10),
-                            Text(
-                              'Select a category',
-                              style: TextStyle(
-                                  color: Color(0xFFAAAAAA), fontSize: 14),
-                            ),
+                            Text('Select a type',
+                                style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14)),
                           ],
                         ),
                         isExpanded: true,
-                        icon: const Icon(Icons.keyboard_arrow_down,
-                            color: Color(0xFF9090A0)),
+                        icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF9090A0)),
                         items: _categories
-                            .map((c) =>
-                                DropdownMenuItem(value: c, child: Text(c)))
+                            .map((c) => DropdownMenuItem(
+                                value: c['id'], child: Text(c['name']!)))
                             .toList(),
-                        onChanged: (val) =>
-                            setState(() => _selectedCategory = val),
+                        onChanged: (val) => setState(() => _selectedCategoryId = val),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Barcode
-                  _buildLabel('Barcode / QR Code', optional: true),
+                  _buildLabel('Barcode', optional: true),
                   _buildTextField(
-                    controller: _barcodeController,
-                    hint: 'Scan or enter barcode',
-                    prefixIcon: Icons.tag,
-                  ),
+                      controller: _barcodeController,
+                      hint: 'Scan or enter barcode',
+                      prefixIcon: Icons.qr_code),
                   const SizedBox(height: 16),
 
                   // Description
                   _buildLabel('Description', optional: true),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F1F5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        color: const Color(0xFFF0F1F5),
+                        borderRadius: BorderRadius.circular(12)),
                     child: Column(
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 14, top: 14),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 14, top: 14),
                               child: Icon(Icons.description_outlined,
-                                  color: const Color(0xFF9090A0), size: 18),
+                                  color: Color(0xFF9090A0), size: 18),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -516,15 +488,12 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                                 controller: _descriptionController,
                                 maxLines: 4,
                                 maxLength: 500,
-                                style: const TextStyle(
-                                    fontSize: 14, color: Color(0xFF1E1E2E)),
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF1E1E2E)),
                                 decoration: const InputDecoration(
                                   hintText: 'Enter product description...',
-                                  hintStyle: TextStyle(
-                                      color: Color(0xFFAAAAAA), fontSize: 14),
+                                  hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
                                   border: InputBorder.none,
-                                  contentPadding: EdgeInsets.only(
-                                      top: 14, right: 14, bottom: 8),
+                                  contentPadding: EdgeInsets.only(top: 14, right: 14, bottom: 8),
                                   counterText: '',
                                 ),
                               ),
@@ -535,11 +504,8 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                           padding: const EdgeInsets.only(right: 14, bottom: 8),
                           child: Align(
                             alignment: Alignment.centerRight,
-                            child: Text(
-                              '$_descriptionLength/500',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Color(0xFF9090A0)),
-                            ),
+                            child: Text('$_descriptionLength/500',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF9090A0))),
                           ),
                         ),
                       ],
@@ -550,15 +516,16 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   // Tags
                   _buildLabel('Tags', optional: true),
                   _buildTextField(
-                    controller: _tagsController,
-                    hint: 'e.g., office, peripherals, wireless',
-                    prefixIcon: Icons.label_outline,
-                  ),
+                      controller: _tagsController,
+                      hint: 'e.g., office, peripherals, wireless',
+                      prefixIcon: Icons.label_outline),
+                  const SizedBox(height: 4),
+                  const Text('Separate tags with commas',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF9090A0))),
                   const SizedBox(height: 28),
 
-                  // ── Inventory & Pricing ──
-                  _buildSectionHeader(
-                      'Inventory & Pricing', Icons.attach_money),
+                  // ── Inventory & Pricing ────────────────────────────────────
+                  _buildSectionHeader('Inventory & Pricing', Icons.attach_money),
                   const SizedBox(height: 20),
 
                   Row(
@@ -569,11 +536,10 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                           children: [
                             _buildLabel('Quantity', required: true),
                             _buildTextField(
-                              controller: _quantityController,
-                              hint: '0',
-                              prefixIcon: Icons.tag,
-                              keyboardType: TextInputType.number,
-                            ),
+                                controller: _quantityController,
+                                hint: '0',
+                                prefixIcon: Icons.numbers,
+                                keyboardType: TextInputType.number),
                           ],
                         ),
                       ),
@@ -582,97 +548,18 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('Price', optional: true),
+                            _buildLabel('Price (TND)', optional: true),
                             _buildTextField(
                               controller: _priceController,
                               hint: '0.00',
                               prefix: const Padding(
                                 padding: EdgeInsets.only(left: 14, right: 8),
-                                child: Text('\$',
+                                child: Text('TND',
                                     style: TextStyle(
-                                        color: Color(0xFF9090A0),
-                                        fontSize: 16)),
+                                        color: Color(0xFF9090A0), fontSize: 13)),
                               ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildLabel('Stock Alert Thresholds', optional: true),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF8F0),
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: const Color(0xFFFFC77A)),
-                              ),
-                              child: TextField(
-                                controller: _minStockController,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(
-                                    fontSize: 14, color: Color(0xFF1E1E2E)),
-                                decoration: const InputDecoration(
-                                  hintText: 'Min stock',
-                                  hintStyle: TextStyle(
-                                      color: Color(0xFFE8A040), fontSize: 14),
-                                  prefixIcon: Icon(Icons.warning_amber_outlined,
-                                      color: Color(0xFFE8A040), size: 18),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 14),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('Alert below',
-                                style: TextStyle(
-                                    fontSize: 11, color: Color(0xFF9090A0))),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF0FFF4),
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: const Color(0xFF68D391)),
-                              ),
-                              child: TextField(
-                                controller: _maxStockController,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(
-                                    fontSize: 14, color: Color(0xFF1E1E2E)),
-                                decoration: const InputDecoration(
-                                  hintText: 'Max stock',
-                                  hintStyle: TextStyle(
-                                      color: Color(0xFF38A169), fontSize: 14),
-                                  prefixIcon: Icon(Icons.check_circle_outline,
-                                      color: Color(0xFF38A169), size: 18),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 14),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('Full at',
-                                style: TextStyle(
-                                    fontSize: 11, color: Color(0xFF9090A0))),
                           ],
                         ),
                       ),
@@ -680,9 +567,8 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // ── Storage Location ──
-                  _buildSectionHeader(
-                      'Storage Location', Icons.location_on_outlined),
+                  // ── Storage Location ───────────────────────────────────────
+                  _buildSectionHeader('Storage Location', Icons.location_on_outlined),
                   const SizedBox(height: 20),
 
                   _buildLabel('Warehouse Zone', optional: true),
@@ -691,33 +577,22 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                     children: _zones.map((zone) {
                       final selected = _selectedZone == zone;
                       return GestureDetector(
-                        onTap: () => setState(
-                            () => _selectedZone = selected ? null : zone),
+                        onTap: () => setState(() => _selectedZone = selected ? null : zone),
                         child: Container(
-                          width: 48,
-                          height: 48,
+                          width: 48, height: 48,
                           decoration: BoxDecoration(
-                            color: selected
-                                ? const Color(0xFF4F46E5)
-                                : Colors.white,
+                            color: selected ? const Color(0xFF4F46E5) : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: selected
-                                  ? const Color(0xFF4F46E5)
-                                  : const Color(0xFFDDDDEE),
+                              color: selected ? const Color(0xFF4F46E5) : const Color(0xFFDDDDEE),
                             ),
                           ),
                           child: Center(
-                            child: Text(
-                              zone,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: selected
-                                    ? Colors.white
-                                    : const Color(0xFF1E1E2E),
-                              ),
-                            ),
+                            child: Text(zone,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: selected ? Colors.white : const Color(0xFF1E1E2E))),
                           ),
                         ),
                       );
@@ -727,88 +602,30 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
 
                   _buildLabel('Shelf / Bin Location', optional: true),
                   _buildTextField(
-                    controller: _shelfBinController,
-                    hint: 'e.g., Warehouse A, Shelf 5B',
-                    prefixIcon: Icons.place_outlined,
-                  ),
-                  const SizedBox(height: 28),
+                      controller: _shelfBinController,
+                      hint: 'e.g., Shelf 5B, Room 204',
+                      prefixIcon: Icons.place_outlined),
+                  const SizedBox(height: 36),
 
-                  // ── Supplier Info ──
-                  _buildSectionHeader('Supplier Info', Icons.business_outlined),
-                  const SizedBox(height: 20),
-
-                  _buildLabel('Supplier Name', optional: true),
-                  _buildTextField(
-                    controller: _supplierNameController,
-                    hint: 'e.g., ABC Supplies Inc.',
-                    prefixIcon: Icons.business_outlined,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Warning note
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFCD34D)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Icon(Icons.lock_outline,
-                            color: Color(0xFFD97706), size: 16),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              style: TextStyle(
-                                  fontSize: 13, color: Color(0xFF92400E)),
-                              children: [
-                                TextSpan(
-                                    text:
-                                        'Once added, this product can only be '),
-                                TextSpan(
-                                  text: 'viewed',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                TextSpan(text: ', not edited or deleted.'),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Add button
+                  // Submit button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Product added to inventory!'),
-                            backgroundColor: Color(0xFF4F46E5),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add, color: Colors.white),
-                      label: const Text(
-                        'Add Product to Inventory',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      onPressed: _isLoading ? null : _submit,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.add, color: Colors.white),
+                      label: Text(
+                        _isLoading ? 'Saving...' : 'Add Product to Inventory',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4F46E5),
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         elevation: 0,
                       ),
                     ),
@@ -823,17 +640,54 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     );
   }
 
-  Widget _buildImageButton(IconData icon, String label) {
-    return OutlinedButton.icon(
-      onPressed: () {},
-      icon: Icon(icon, size: 18, color: const Color(0xFF1E1E2E)),
-      label: Text(
-        label,
-        style: const TextStyle(
-            color: Color(0xFF1E1E2E), fontWeight: FontWeight.w600),
+  void _showImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF4F46E5)),
+              title: const Text('Take a photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF4F46E5)),
+              title: const Text('Choose from gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            if (_pickedXFile != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Remove photo', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() { _pickedXFile = null; _imageBytes = null; });
+                },
+              ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildImageButton(IconData icon, String label, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18, color: const Color(0xFF1E1E2E)),
+      label: Text(label,
+          style: const TextStyle(color: Color(0xFF1E1E2E), fontWeight: FontWeight.w600)),
       style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         side: const BorderSide(color: Color(0xFFDDDDEE)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

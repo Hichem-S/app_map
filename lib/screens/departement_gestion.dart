@@ -75,7 +75,7 @@ class TCDepartmentScreen extends StatelessWidget {
                               style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold)),
-                          Text("Techniques de Commerce",
+                          Text("Commerce Techniques",
                               style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
@@ -171,7 +171,7 @@ class TCDepartmentScreen extends StatelessWidget {
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Salles du département",
+                      Text("Department Rooms",
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
                       Text("2 salle(s)", style: TextStyle(color: Colors.grey)),
@@ -209,7 +209,7 @@ class TCDepartmentScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Responsable du Département",
+                  const Text("Department Head",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 15),
@@ -241,7 +241,7 @@ class TCDepartmentScreen extends StatelessWidget {
                             Text("Dr. Youssef Slimi",
                                 style: TextStyle(
                                     fontSize: 16, fontWeight: FontWeight.bold)),
-                            Text("Chef de département — TC",
+                            Text("Department Head — TC",
                                 style: TextStyle(color: Colors.grey)),
                           ],
                         )

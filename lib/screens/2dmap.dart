@@ -23,14 +23,14 @@ class EquipmentMapApp extends StatelessWidget {
 class Equipment {
   final String id;
   final String name;
-  final String category;
+  final String type;
   final Offset position; // Position on the map (0-1 range for simplicity)
   final Color color;
 
   Equipment({
     required this.id,
     required this.name,
-    required this.category,
+    required this.type,
     required this.position,
     required this.color,
   });
@@ -44,51 +44,51 @@ class EquipmentMapScreen extends StatefulWidget {
 }
 
 class _EquipmentMapScreenState extends State<EquipmentMapScreen> {
-  String selectedCategory = 'All';
+  String selectedType = 'All';
   final TextEditingController _searchController = TextEditingController();
 
   final List<Equipment> allEquipment = [
     Equipment(
       id: '1',
       name: 'Laptop',
-      category: 'Electronics',
+      type: 'Computer',
       position: const Offset(0.25, 0.3),
-      color: const Color(0xFFEF4444), // Red
+      color: const Color(0xFFEF4444),
     ),
     Equipment(
       id: '2',
-      name: 'Server',
-      category: 'Electronics',
+      name: 'Server Rack',
+      type: 'Server',
       position: const Offset(0.55, 0.25),
-      color: const Color(0xFF10B981), // Green
+      color: const Color(0xFF10B981),
     ),
     Equipment(
       id: '3',
       name: 'Monitor',
-      category: 'Electronics',
+      type: 'Display',
       position: const Offset(0.85, 0.28),
-      color: const Color(0xFFFA8500), // Orange
+      color: const Color(0xFFFA8500),
     ),
     Equipment(
       id: '4',
-      name: 'Desk',
-      category: 'Furniture',
+      name: 'Network Switch',
+      type: 'Network Device',
       position: const Offset(0.35, 0.5),
-      color: const Color(0xFF10B981), // Green
+      color: const Color(0xFF3B82F6),
     ),
     Equipment(
       id: '5',
-      name: 'Office Chair',
-      category: 'Furniture',
+      name: 'Printer',
+      type: 'Printer/Scanner',
       position: const Offset(0.65, 0.55),
-      color: const Color(0xFF10B981), // Green
+      color: const Color(0xFF8B5CF6),
     ),
     Equipment(
       id: '6',
-      name: 'Cabinet',
-      category: 'Furniture',
+      name: 'Projector',
+      type: 'Projector',
       position: const Offset(0.45, 0.65),
-      color: const Color(0xFFFA8500), // Orange
+      color: const Color(0xFFF59E0B),
     ),
   ];
 
@@ -102,11 +102,11 @@ class _EquipmentMapScreenState extends State<EquipmentMapScreen> {
 
   void _filterEquipment() {
     setState(() {
-      if (selectedCategory == 'All') {
+      if (selectedType == 'All') {
         filteredEquipment = allEquipment;
       } else {
         filteredEquipment =
-            allEquipment.where((e) => e.category == selectedCategory).toList();
+            allEquipment.where((e) => e.type == selectedType).toList();
       }
     });
   }
@@ -149,7 +149,7 @@ class _EquipmentMapScreenState extends State<EquipmentMapScreen> {
                           ),
                         ),
                         Text(
-                          equipment.category,
+                          equipment.type,
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -264,43 +264,22 @@ class _EquipmentMapScreenState extends State<EquipmentMapScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Category filter chips
+                      // Type filter chips
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _CategoryChip(
-                              label: 'All',
-                              isSelected: selectedCategory == 'All',
-                              onTap: () {
-                                setState(() {
-                                  selectedCategory = 'All';
+                            for (final t in ['All', 'Computer', 'Server', 'Network Device', 'Peripheral', 'Printer/Scanner', 'Display', 'Projector', 'Machine Tool']) ...[
+                              _CategoryChip(
+                                label: t,
+                                isSelected: selectedType == t,
+                                onTap: () => setState(() {
+                                  selectedType = t;
                                   _filterEquipment();
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _CategoryChip(
-                              label: 'Electronics',
-                              isSelected: selectedCategory == 'Electronics',
-                              onTap: () {
-                                setState(() {
-                                  selectedCategory = 'Electronics';
-                                  _filterEquipment();
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _CategoryChip(
-                              label: 'Furniture',
-                              isSelected: selectedCategory == 'Furniture',
-                              onTap: () {
-                                setState(() {
-                                  selectedCategory = 'Furniture';
-                                  _filterEquipment();
-                                });
-                              },
-                            ),
+                                }),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                           ],
                         ),
                       ),

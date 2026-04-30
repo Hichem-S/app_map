@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -13,8 +14,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool notificationsEnabled = true;
   bool biometricEnabled = true;
 
+  Map<String, dynamic>? _user;
+  List<dynamic> _scanHistory = [];
+  Map<String, dynamic>? _stats;
+  bool _loadingUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getMe(),
+        ApiService.getScanHistory(),
+        ApiService.getStats(),
+      ]);
+      if (!mounted) return;
+      final me = results[0] as Map<String, dynamic>;
+      setState(() {
+        if (me['success'] == true) _user = me['data'] as Map<String, dynamic>;
+        _scanHistory = results[1] as List<dynamic>;
+        _stats = results[2] as Map<String, dynamic>?;
+        _loadingUser = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingUser = false);
+    }
+  }
+
+  String get _userName => _user?['name'] ?? '—';
+  String get _userEmail => _user?['email'] ?? '—';
+  String get _userRole => _user?['role'] ?? '—';
+
   @override
   Widget build(BuildContext context) {
+    if (_loadingUser) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -155,9 +196,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(32),
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
-                    fit: BoxFit.cover,
+                  child: Center(
+                    child: Text(
+                      _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -198,24 +245,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           // Name
-          const Text(
-            'Mohamed Ben Ali',
-            style: TextStyle(
+          Text(
+            _userName,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
-          // Roles
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildRoleBadge('Administrateur'),
-              const SizedBox(width: 8),
-              _buildRoleBadge('Administration'),
-            ],
-          ),
+          // Role
+          _buildRoleBadge(_userRole),
         ],
       ),
     );
@@ -241,12 +281,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsSection() {
+    final totalScans = _stats?['total_scans'] ?? _scanHistory.length;
+    final totalProducts = _stats?['total_products'] ?? 0;
+    final categoriesUsed = _stats?['categories_used'] ?? 0;
+
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            icon: Icons.trending_up,
-            count: '8',
+            icon: Icons.qr_code_scanner,
+            count: totalScans.toString(),
             label: 'Scans',
             iconColor: Colors.blue,
           ),
@@ -254,18 +298,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            icon: Icons.checkroom,
-            count: '1',
-            label: 'Catégories',
+            icon: Icons.inventory_2,
+            count: totalProducts.toString(),
+            label: 'Produits',
             iconColor: Colors.green,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            icon: Icons.swap_horiz,
-            count: '0',
-            label: 'Transferts',
+            icon: Icons.category,
+            count: categoriesUsed.toString(),
+            label: 'Types',
             iconColor: Colors.orange,
           ),
         ),
@@ -343,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Établissement',
+                'Institution',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 12,
@@ -360,7 +404,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Institut Supérieur des Études Technologiques',
+                'Higher Institute of Technological Studies',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 11,
@@ -507,7 +551,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.person,
           iconColor: Colors.blue,
           label: 'Nom complet',
-          value: 'Mohamed Ben Ali',
+          value: _userName,
         ),
         const SizedBox(height: 12),
         _buildInfoItem(
@@ -520,14 +564,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _buildInfoItem(
           icon: Icons.security,
           iconColor: Colors.purple,
-          label: 'Rôle',
-          value: 'Administrateur',
+          label: 'Role',
+          value: _userRole,
         ),
         const SizedBox(height: 12),
         _buildInfoItem(
           icon: Icons.domain,
           iconColor: Colors.green,
-          label: 'Département',
+          label: 'Department',
           value: 'Administration',
         ),
         const SizedBox(height: 12),
@@ -535,13 +579,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.email,
           iconColor: Colors.orange,
           label: 'Email',
-          value: 'adm-001@isetmahdia.rnu.tn',
+          value: _userEmail,
         ),
         const SizedBox(height: 12),
         _buildInfoItem(
           icon: Icons.phone,
           iconColor: Colors.teal,
-          label: 'Téléphone',
+          label: 'Phone',
           value: '+216 73 675 101',
         ),
       ],
@@ -614,15 +658,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildCollapsibleItem(
-          icon: Icons.trending_up,
-          iconColor: Colors.blue,
-          title: 'Journal d\'activité',
-          subtitle: '8 événement(s) enregistré(s)',
-          onTap: () {},
-        ),
+        if (_scanHistory.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Center(
+              child: Text(
+                'No recent activity',
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ),
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (int index = 0;
+                  index < (_scanHistory.length > 10 ? 10 : _scanHistory.length);
+                  index++) ...[
+                if (index > 0) const SizedBox(height: 8),
+                Builder(builder: (context) {
+                  final item = _scanHistory[index] as Map<String, dynamic>;
+                  final scannedAt = DateTime.tryParse(item['scanned_at'] ?? '');
+                  final timeAgo = scannedAt != null ? _timeAgo(scannedAt) : '';
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.qr_code_scanner, color: Colors.blue, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['name'] ?? '—',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                item['category_name'] ?? item['sku'] ?? '',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          timeAgo,
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ],
+          ),
       ],
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'À l\'instant';
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+    if (diff.inDays < 7) return 'Il y a ${diff.inDays} j';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   Widget _buildUserChangeSection(BuildContext context) {
@@ -642,8 +763,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _buildCollapsibleItem(
           icon: Icons.person,
           iconColor: Colors.purple,
-          title: 'Profil actif : Mohamed Ben Ali',
-          subtitle: 'Administrateur · ADM-001',
+          title: 'Profil actif : $_userName',
+          subtitle: _userRole,
           onTap: () {},
         ),
       ],
@@ -731,7 +852,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Langue',
+                  'Language',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey,
@@ -739,7 +860,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Français',
+                  'English',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -771,8 +892,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _buildNavigableItem(
           icon: Icons.qr_code,
           iconColor: Colors.purple,
-          title: 'Scanner Hiérarchique',
-          subtitle: 'ISET → Dépt. → Salle → Equip.',
+          title: 'Hierarchical Scanner',
+          subtitle: 'ISET → Dept. → Room → Equip.',
           onTap: () {},
         ),
         const SizedBox(height: 12),
@@ -780,7 +901,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.apartment,
           iconColor: Colors.blue,
           title: 'Vue Institut ISET',
-          subtitle: 'Tous les départements',
+          subtitle: 'All departments',
           onTap: () {},
         ),
         const SizedBox(height: 12),
@@ -932,25 +1053,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       child: ElevatedButton(
         onPressed: () {
+          final screenContext = context;
           showDialog(
-            context: context,
-            builder: (BuildContext context) {
+            context: screenContext,
+            builder: (dialogContext) {
               return AlertDialog(
-                title: const Text('Se Déconnecter'),
+                title: const Text('Sign Out'),
                 content:
-                    const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+                    const Text('Are you sure you want to sign out?'),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Annuler'),
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.pop(context);
+                      Navigator.pop(dialogContext);
+                      Navigator.pushNamedAndRemoveUntil(
+                        screenContext,
+                        '/login',
+                        (_) => false,
+                      );
+                      ApiService.logout();
                     },
                     child: const Text(
-                      'Se Déconnecter',
+                      'Sign Out',
                       style: TextStyle(color: Colors.red),
                     ),
                   ),
@@ -1168,7 +1295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildFooter() {
     return Text(
-      'Institut Supérieur des Études Technologiques de Mahdia © 2024 — Tous droits réservés',
+      'Higher Institute of Technological Studies of Mahdia © 2024 — All rights reserved',
       textAlign: TextAlign.center,
       style: TextStyle(
         fontSize: 11,
