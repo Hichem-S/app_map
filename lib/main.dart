@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/auth_provider.dart';
+import 'widgets/role_guard.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
@@ -16,12 +18,20 @@ import 'screens/departement_informatique.dart' as dept_gi;
 import 'screens/departement_electrique.dart' as dept_ge;
 import 'screens/departement_gestion.dart' as dept_tc;
 import 'screens/administration_screen.dart' as dept_adm;
+import 'screens/list_equipment_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/reset_password_screen.dart';
+import 'screens/verify_email_screen.dart';
+import 'screens/admin_users_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -56,6 +66,15 @@ class MyApp extends StatelessWidget {
             '/departement_tc': (context) => const dept_tc.TCDepartmentScreen(),
             '/departement_adm': (context) =>
                 const dept_adm.ADMDepartmentScreen(),
+            '/list_equipment': (context) =>
+                const ListEquipmentScreen(),
+            '/admin/users': (context) => const RoleGuard(
+                  roles: ['admin'],
+                  child: AdminUsersScreen(),
+                ),
+            '/forgot-password': (context) => const ForgotPasswordScreen(),
+            '/reset-password':  (context) => const ResetPasswordScreen(),
+            '/verify-email':    (context) => const VerifyEmailScreen(),
           },
         );
       },

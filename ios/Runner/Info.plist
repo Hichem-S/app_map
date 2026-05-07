@@ -41,6 +41,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Required to take photos of inventory items.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Required to save QR code images to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Required to access your photo library to upload product photos.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

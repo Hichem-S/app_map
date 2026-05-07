@@ -1,26 +1,8 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Scanner Hiérarchique',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1A2340)),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
-      home: const ScannerHierarchique(),
-    );
-  }
-}
+import '../services/api_service.dart';
+import '../models/department.dart';
+import '../utils/app_colors.dart';
+import 'dept_rooms_screen.dart';
 
 // ─── Data Models ──────────────────────────────────────────────────────────────
 
@@ -67,16 +49,17 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
     with TickerProviderStateMixin {
   final TextEditingController _inputController = TextEditingController();
   HierarchyLevel _activeLevel = HierarchyLevel.iset;
+  bool _isProcessing = false;
   late AnimationController _scannerPulseController;
   late Animation<double> _scannerPulseAnim;
 
   // Colors
-  static const Color _darkBg = Color(0xFF1A2340);
-  static const Color _isetColor = Color(0xFF3B82F6);
-  static const Color _deptColor = Color(0xFF6366F1);
-  static const Color _salleColor = Color(0xFF10B981);
+  static const Color _darkBg     = Color(0xFF1E1B4B); // Indigo 950
+  static const Color _isetColor  = AppColors.primary;
+  static const Color _deptColor  = Color(0xFF8B5CF6); // Violet 500
+  static const Color _salleColor = AppColors.success;
   static const Color _equipColor = Color(0xFFF97316);
-  static const Color _scannerBlue = Color(0xFF3B82F6);
+  static const Color _scannerBlue = AppColors.primary;
 
   final List<QuickScanItem> _quickScans = const [
     QuickScanItem(
@@ -85,29 +68,24 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
         level: HierarchyLevel.iset,
         color: _isetColor),
     QuickScanItem(
-        label: 'GI', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
+        label: 'I', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
     QuickScanItem(
-        label: 'GE', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
+        label: 'M', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
     QuickScanItem(
-        label: 'TC', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
+        label: 'G', icon: '🏢', level: HierarchyLevel.dept, color: _deptColor),
     QuickScanItem(
-        label: 'ADM',
+        label: 'E',
         icon: '🏢',
         level: HierarchyLevel.dept,
         color: _deptColor),
     QuickScanItem(
-        label: 'A101',
+        label: 'Salle',
         icon: '🚪',
         level: HierarchyLevel.salle,
         color: _salleColor),
     QuickScanItem(
-        label: 'B102',
-        icon: '🚪',
-        level: HierarchyLevel.salle,
-        color: _salleColor),
-    QuickScanItem(
-        label: 'LAB1',
-        icon: '🔬',
+        label: 'Équip.',
+        icon: '📦',
         level: HierarchyLevel.equip,
         color: _equipColor),
   ];
@@ -184,6 +162,100 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
     }
   }
 
+  // ─── Navigation logic ─────────────────────────────────────────────────────
+
+  Future<void> _onChipTap(QuickScanItem item) async {
+    if (_isProcessing) return;
+    setState(() => _activeLevel = item.level);
+
+    switch (item.level) {
+      case HierarchyLevel.iset:
+        if (mounted) Navigator.pushNamed(context, '/vueinstitut');
+        break;
+
+      case HierarchyLevel.dept:
+        setState(() => _isProcessing = true);
+        try {
+          final depts = await ApiService.getDepartments();
+          if (!mounted) return;
+          final match = depts
+              .cast<Map<String, dynamic>>()
+              .where((d) => d['code'] == item.label)
+              .toList();
+          if (match.isEmpty) {
+            _snack('Department "${item.label}" not found');
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DeptRoomsScreen(
+                department: Department.fromJson(match.first),
+              ),
+            ),
+          );
+        } catch (e) {
+          if (mounted) _snack('Error loading department: $e');
+        } finally {
+          if (mounted) setState(() => _isProcessing = false);
+        }
+        break;
+
+      case HierarchyLevel.salle:
+      case HierarchyLevel.equip:
+        if (mounted) Navigator.pushNamed(context, '/qrscanner');
+        break;
+    }
+  }
+
+  Future<void> _processInput() async {
+    final raw = _inputController.text.trim();
+    if (raw.isEmpty || _isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    try {
+      if (raw == 'ISET://institution') {
+        Navigator.pushNamed(context, '/vueinstitut');
+        return;
+      }
+
+      if (raw.startsWith('ISET://dept/')) {
+        final code = raw.substring('ISET://dept/'.length).trim();
+        final depts = await ApiService.getDepartments();
+        if (!mounted) return;
+        final match = depts
+            .cast<Map<String, dynamic>>()
+            .where((d) => d['code'] == code)
+            .toList();
+        if (match.isEmpty) {
+          _snack('Department "$code" not found');
+          return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                DeptRoomsScreen(department: Department.fromJson(match.first)),
+          ),
+        );
+        return;
+      }
+
+      // Fall through to full QR scanner for product UUIDs / URLs
+      Navigator.pushNamed(context, '/qrscanner');
+    } catch (e) {
+      if (mounted) _snack('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -221,7 +293,7 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1A2340), Color(0xFF243058)],
+          colors: [Color(0xFF1E1B4B), Color(0xFF3730A3)],
         ),
       ),
       child: SafeArea(
@@ -260,7 +332,10 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
                       ],
                     ),
                   ),
-                  _headerIconButton(Icons.history_rounded),
+                  _headerIconButton(
+                    Icons.qr_code_scanner_rounded,
+                    onTap: () => Navigator.pushNamed(context, '/qrscanner'),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -358,8 +433,9 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
                   Expanded(
                     child: TextField(
                       controller: _inputController,
+                      onSubmitted: (_) => _processInput(),
                       decoration: const InputDecoration(
-                        hintText: 'Paste JSON payload or QR ID...',
+                        hintText: 'Paste QR payload or dept code...',
                         hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                         border: InputBorder.none,
                         isDense: true,
@@ -373,12 +449,14 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: () {},
+            onTap: _isProcessing ? null : _processInput,
             child: Container(
               height: 52,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: _scannerBlue,
+                color: _isProcessing
+                    ? _scannerBlue.withOpacity(0.6)
+                    : _scannerBlue,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
@@ -388,15 +466,22 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
                   ),
                 ],
               ),
-              child: const Center(
-                child: Text(
-                  'Scanner',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
+              child: Center(
+                child: _isProcessing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text(
+                        'Go',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -414,7 +499,7 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
         const Padding(
           padding: EdgeInsets.only(left: 16, bottom: 12),
           child: Text(
-            'SCAN RAPIDE (DÉMO)',
+            'ACCÈS RAPIDE',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -432,7 +517,10 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, i) {
               final item = _quickScans[i];
-              return _QuickScanChip(item: item);
+              return _QuickScanChip(
+                item: item,
+                onTap: () => _onChipTap(item),
+              );
             },
           ),
         ),
@@ -443,48 +531,75 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
   // ─── Scanner Widget ───────────────────────────────────────────────────────
 
   Widget _buildScannerWidget() {
-    return Column(
-      children: [
-        ScaleTransition(
-          scale: _scannerPulseAnim,
-          child: Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEBF2FF),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Center(
-              child: CustomPaint(
-                size: const Size(52, 52),
-                painter: _QRCornersPainter(color: _scannerBlue),
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/qrscanner'),
+      child: Column(
+        children: [
+          ScaleTransition(
+            scale: _scannerPulseAnim,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEBF2FF),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Center(
+                child: CustomPaint(
+                  size: const Size(52, 52),
+                  painter: _QRCornersPainter(color: _scannerBlue),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Scanner un QR Code',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A2340),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            'Use the quick scan buttons or enter a JSON payload to navigate the ISET hierarchy',
-            textAlign: TextAlign.center,
+          const SizedBox(height: 16),
+          const Text(
+            'Scanner un QR Code',
             style: TextStyle(
-              fontSize: 13,
-              color: Colors.black45,
-              height: 1.5,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A2340),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Appuyez pour ouvrir le scanner et naviguer dans la hiérarchie ISET',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black45,
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            decoration: BoxDecoration(
+              color: _scannerBlue,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: _scannerBlue.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.qr_code_scanner, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Ouvrir le scanner',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -494,12 +609,27 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
-        children: _qrTypes.map((info) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _QRTypeCard(info: info),
-          );
-        }).toList(),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Text(
+              'TYPES DE QR CODE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          ..._qrTypes.map((info) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _QRTypeCard(info: info),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -509,12 +639,13 @@ class _ScannerHierarchiqueState extends State<ScannerHierarchique>
 
 class _QuickScanChip extends StatelessWidget {
   final QuickScanItem item;
-  const _QuickScanChip({required this.item});
+  final VoidCallback onTap;
+  const _QuickScanChip({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(

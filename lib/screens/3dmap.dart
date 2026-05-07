@@ -1,810 +1,742 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
+import '../services/api_service.dart';
 
-void main() {
-  runApp(const ProductMapApp());
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+class _Prod {
+  final String id, name, sku, status;
+  _Prod({required this.id, required this.name, required this.sku, required this.status});
+
+  factory _Prod.fromJson(Map j) => _Prod(
+        id:     j['id']?.toString() ?? '',
+        name:   j['name']?.toString() ?? '',
+        sku:    j['sku']?.toString() ?? '',
+        status: j['status']?.toString() ?? 'in_stock',
+      );
+
+  Color get dotColor => switch (status) {
+        'in_stock'       => const Color(0xFF22C55E),
+        'in_maintenance' => const Color(0xFFF59E0B),
+        'critical_issue' => const Color(0xFFEF4444),
+        _                => const Color(0xFF94A3B8),
+      };
+
+  String get statusLabel => switch (status) {
+        'in_stock'       => 'In Stock',
+        'in_maintenance' => 'Maintenance',
+        'critical_issue' => 'Critical',
+        _                => 'Retired',
+      };
 }
 
-class ProductMapApp extends StatelessWidget {
-  const ProductMapApp({Key? key}) : super(key: key);
+class _Room {
+  final String id, name, type;
+  final int count, inStock, inMaintenance, critical;
+  final List<_Prod> products;
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '3D Product Map',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F1419),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0F1419),
-          elevation: 0,
-        ),
-      ),
-      home: const Product3DMapScreen(),
+  _Room({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.count,
+    required this.inStock,
+    required this.inMaintenance,
+    required this.critical,
+    List<_Prod>? products,
+  }) : products = products ?? const [];
+
+  factory _Room.fromJson(Map j) {
+    List<_Prod> prods = const [];
+    try {
+      final raw = j['products'];
+      if (raw is List && raw.isNotEmpty) {
+        prods = raw.map<_Prod>((p) => _Prod.fromJson(p as Map)).toList();
+      }
+    } catch (_) {}
+    return _Room(
+      id:            j['id']?.toString() ?? '',
+      name:          j['name']?.toString() ?? '',
+      type:          j['type']?.toString() ?? 'classroom',
+      count:         int.tryParse(j['product_count']?.toString() ?? '0') ?? 0,
+      inStock:       int.tryParse(j['in_stock']?.toString() ?? '0') ?? 0,
+      inMaintenance: int.tryParse(j['in_maintenance']?.toString() ?? '0') ?? 0,
+      critical:      int.tryParse(j['critical_issue']?.toString() ?? '0') ?? 0,
+      products:      prods,
+    );
+  }
+
+  Color get statusColor {
+    if (critical > 0)      return const Color(0xFFEF4444);
+    if (inMaintenance > 0) return const Color(0xFFF59E0B);
+    if (inStock > 0)       return const Color(0xFF22C55E);
+    return const Color(0xFF94A3B8);
+  }
+}
+
+class _Dept {
+  final String id, code, name;
+  final Color color;
+  final List<_Room> rooms;
+  int get total => rooms.fold(0, (s, r) => s + r.count);
+
+  _Dept({required this.id, required this.code, required this.name,
+         required this.color, required this.rooms});
+
+  factory _Dept.fromJson(Map j) {
+    final hex = (j['color']?.toString() ?? '#6366F1').replaceAll('#', '').padLeft(6, '0');
+    List<_Room> rooms = const [];
+    try {
+      final raw = j['rooms'];
+      if (raw is List) rooms = raw.map<_Room>((r) => _Room.fromJson(r as Map)).toList();
+    } catch (_) {}
+    return _Dept(
+      id:    j['id']?.toString() ?? '',
+      code:  j['code']?.toString() ?? '',
+      name:  j['name']?.toString() ?? '',
+      color: Color(int.parse('FF$hex', radix: 16)),
+      rooms: rooms,
     );
   }
 }
 
-class Product {
-  final String id;
-  final String name;
-  final int quantity;
-  final StockStatus status;
-  final Offset position3D; // x, y coordinates for 3D positioning
-  final double height; // Represents quantity visually
+// ─── Isometric constants & geometry ──────────────────────────────────────────
 
-  Product({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.status,
-    required this.position3D,
-    required this.height,
-  });
+const _tw = 210.0;   // tile width
+const _th = 105.0;   // tile height = tw / 2
+const _wh = 72.0;    // wall height
+const _ox = 420.0;   // origin x
+const _oy = 55.0;    // origin y
+const _cw = 860.0;   // canvas width
+const _ch = 530.0;   // canvas height
+
+const _kGrid = <String, List<int>>{
+  'I': [0, 0], 'M': [1, 0], 'G': [2, 0],
+  'E': [0, 1], 'TC': [1, 1], 'ADM': [2, 1],
+};
+
+Offset _apex(int col, int row) => Offset(
+  _ox + (col - row) * _tw / 2,
+  _oy + (col + row) * _th / 2,
+);
+
+// Place a sub-cell (c, r) on the top face using isometric parametric coordinates
+Offset _cellPos(Offset apex, int c, int r, int cols, int rows) {
+  final u = 0.18 + (c + 0.5) / cols * 0.64;
+  final v = 0.18 + (r + 0.5) / rows * 0.64;
+  return Offset(
+    apex.dx + (u - v) * _tw / 2,
+    apex.dy + (u + v) * _th / 2,
+  );
 }
 
-enum StockStatus {
-  inStock,
-  lowStock,
-  outOfStock,
+// Full isometric block silhouette for hit testing
+Path _blockPath(Offset a) => Path()
+  ..addPolygon([
+    a,
+    a + Offset(_tw / 2, _th / 2),
+    a + Offset(_tw / 2, _th / 2 + _wh),
+    a + Offset(0, _th + _wh),
+    a + Offset(-_tw / 2, _th / 2 + _wh),
+    a + Offset(-_tw / 2, _th / 2),
+  ], true);
+
+Color _cTop(Color c) {
+  final h = HSLColor.fromColor(c);
+  return h.withLightness((h.lightness + 0.22).clamp(0.0, 1.0)).toColor();
+}
+Color _cLeft(Color c) {
+  final h = HSLColor.fromColor(c);
+  return h.withLightness((h.lightness - 0.04).clamp(0.0, 1.0)).toColor();
+}
+Color _cRight(Color c) {
+  final h = HSLColor.fromColor(c);
+  return h.withLightness((h.lightness - 0.20).clamp(0.0, 1.0)).toColor();
 }
 
-extension StockStatusExt on StockStatus {
-  Color get color {
-    switch (this) {
-      case StockStatus.inStock:
-        return const Color(0xFF10B981); // Green
-      case StockStatus.lowStock:
-        return const Color(0xFFFA8500); // Orange
-      case StockStatus.outOfStock:
-        return const Color(0xFFEF4444); // Red
-    }
-  }
-
-  String get label {
-    switch (this) {
-      case StockStatus.inStock:
-        return 'In Stock';
-      case StockStatus.lowStock:
-        return 'Low Stock';
-      case StockStatus.outOfStock:
-        return 'Out of Stock';
-    }
-  }
-}
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 class Product3DMapScreen extends StatefulWidget {
   const Product3DMapScreen({Key? key}) : super(key: key);
-
   @override
   State<Product3DMapScreen> createState() => _Product3DMapScreenState();
 }
 
-class _Product3DMapScreenState extends State<Product3DMapScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _rotationController;
-  String selectedFilter = 'All Products';
-
-  final List<Product> allProducts = [
-    Product(
-      id: 'WM-001',
-      name: 'Wireless Mouse',
-      quantity: 45,
-      status: StockStatus.inStock,
-      position3D: const Offset(0.2, 0.3),
-      height: 0.4,
-    ),
-    Product(
-      id: 'UC-003',
-      name: 'USB-C Cable',
-      quantity: 120,
-      status: StockStatus.inStock,
-      position3D: const Offset(0.4, 0.5),
-      height: 0.8,
-    ),
-    Product(
-      id: 'LS-002',
-      name: 'Laptop Stand',
-      quantity: 8,
-      status: StockStatus.lowStock,
-      position3D: const Offset(0.6, 0.2),
-      height: 0.35,
-    ),
-    Product(
-      id: 'MN-004',
-      name: 'Monitor 27"',
-      quantity: 0,
-      status: StockStatus.outOfStock,
-      position3D: const Offset(0.75, 0.4),
-      height: 0.0,
-    ),
-    Product(
-      id: 'OC-005',
-      name: 'Office Chair',
-      quantity: 15,
-      status: StockStatus.inStock,
-      position3D: const Offset(0.25, 0.7),
-      height: 0.5,
-    ),
-    Product(
-      id: 'WC-007',
-      name: 'Webcam HD',
-      quantity: 32,
-      status: StockStatus.inStock,
-      position3D: const Offset(0.5, 0.75),
-      height: 0.6,
-    ),
-    Product(
-      id: 'KB-006',
-      name: 'Mechanical Keyboard',
-      quantity: 5,
-      status: StockStatus.lowStock,
-      position3D: const Offset(0.8, 0.6),
-      height: 0.25,
-    ),
-    Product(
-      id: 'SD-008',
-      name: 'Standing Desk',
-      quantity: 3,
-      status: StockStatus.lowStock,
-      position3D: const Offset(0.65, 0.8),
-      height: 0.15,
-    ),
-  ];
-
-  late List<Product> filteredProducts;
+class _Product3DMapScreenState extends State<Product3DMapScreen> {
+  List<_Dept> _depts  = [];
+  bool        _loading = true;
+  String?     _selId;
+  final       _txCtrl  = TransformationController();
 
   @override
-  void initState() {
-    super.initState();
-    _rotationController = AnimationController(
-      duration: const Duration(seconds: 20),
-      vsync: this,
-    )..repeat();
-    filteredProducts = allProducts;
-  }
+  void initState() { super.initState(); _load(); }
 
   @override
-  void dispose() {
-    _rotationController.dispose();
-    super.dispose();
+  void dispose() { _txCtrl.dispose(); super.dispose(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final raw = await ApiService.getMapData();
+      if (mounted) setState(() {
+        _depts   = raw.map((j) => _Dept.fromJson(j as Map)).toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  void _filterProducts(String filter) {
-    setState(() {
-      selectedFilter = filter;
-      if (filter == 'All Products') {
-        filteredProducts = allProducts;
-      } else {
-        filteredProducts =
-            allProducts.where((p) => p.status.label == filter).toList();
-      }
+  int get _total => _depts.fold(0, (s, d) => s + d.total);
+
+  Map<String, List<int>> _buildGrid() {
+    final m = <String, List<int>>{};
+    int fb = 0;
+    for (final d in _depts) {
+      m[d.code] = _kGrid.containsKey(d.code) ? _kGrid[d.code]! : [fb % 3, fb++ ~/ 3];
+    }
+    return m;
+  }
+
+  void _onTap(Offset pos) {
+    final g = _buildGrid();
+    // Test front-to-back
+    final sorted = [..._depts]..sort((a, b) {
+      final ga = g[a.code] ?? [0, 0];
+      final gb = g[b.code] ?? [0, 0];
+      return (gb[0] + gb[1]).compareTo(ga[0] + ga[1]);
     });
+    for (final d in sorted) {
+      final gp = g[d.code];
+      if (gp == null) continue;
+      if (_blockPath(_apex(gp[0], gp[1])).contains(pos)) {
+        _openDept(d);
+        return;
+      }
+    }
   }
 
-  Color _getStatusColor(StockStatus status) => status.color;
+  void _openDept(_Dept dept) {
+    setState(() => _selId = dept.id);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DeptSheet(dept: dept),
+    ).then((_) { if (mounted) setState(() => _selId = null); });
+  }
+
+  void _scale(double f) => _txCtrl.value = _txCtrl.value.clone()..scale(f);
 
   @override
   Widget build(BuildContext context) {
-    final inStockCount =
-        allProducts.where((p) => p.status == StockStatus.inStock).length;
-    final lowStockCount =
-        allProducts.where((p) => p.status == StockStatus.lowStock).length;
-    final outOfStockCount =
-        allProducts.where((p) => p.status == StockStatus.outOfStock).length;
-
+    final g = _buildGrid();
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1419),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0F1419),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '3D Product Map',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              '${allProducts.length} products - Interactive view',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _rotationController.reset();
-              _rotationController.forward();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filter chips
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            color: const Color(0xFF0F1419),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _FilterChip(
-                    label: 'All Products',
-                    isSelected: selectedFilter == 'All Products',
-                    onTap: () => _filterProducts('All Products'),
-                    color: Colors.blue,
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'In Stock',
-                    isSelected: selectedFilter == 'In Stock',
-                    onTap: () => _filterProducts('In Stock'),
-                    color: const Color(0xFF10B981),
-                    count: inStockCount,
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Low Stock',
-                    isSelected: selectedFilter == 'Low Stock',
-                    onTap: () => _filterProducts('Low Stock'),
-                    color: const Color(0xFFFA8500),
-                    count: lowStockCount,
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Out of Stock',
-                    isSelected: selectedFilter == 'Out of Stock',
-                    onTap: () => _filterProducts('Out of Stock'),
-                    color: const Color(0xFFEF4444),
-                    count: outOfStockCount,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // 3D Product Map Visualization
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: const Color(0xFF1A1E2E),
-              child: Stack(
-                children: [
-                  // Background grid pattern
-                  CustomPaint(
-                    painter: GridPainter(),
-                    size: Size.infinite,
-                  ),
-                  // 3D Visualization
-                  AnimatedBuilder(
-                    animation: _rotationController,
-                    builder: (context, child) {
-                      return CustomPaint(
-                        painter: Product3DPainter(
-                          products: filteredProducts,
-                          rotation: _rotationController.value * 2 * math.pi,
-                        ),
-                        size: Size.infinite,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Legend
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: const Color(0xFF0F1419),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Legend',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _LegendItem(
-                      color: const Color(0xFF10B981),
-                      label: 'In Stock',
-                    ),
-                    const SizedBox(height: 6),
-                    _LegendItem(
-                      color: const Color(0xFFFA8500),
-                      label: 'Low Stock',
-                    ),
-                    const SizedBox(height: 6),
-                    _LegendItem(
-                      color: const Color(0xFFEF4444),
-                      label: 'Out of Stock',
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Box height = quantity',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                // Stats box
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1E2E),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.grey[800]!,
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _StatBox(
-                        count: '$inStockCount',
-                        label: 'In Stock',
-                        color: const Color(0xFF10B981),
-                      ),
-                      const SizedBox(height: 8),
-                      _StatBox(
-                        count: '$lowStockCount',
-                        label: 'Low Stock',
-                        color: const Color(0xFFFA8500),
-                      ),
-                      const SizedBox(height: 8),
-                      _StatBox(
-                        count: '$outOfStockCount',
-                        label: 'Out of Stock',
-                        color: const Color(0xFFEF4444),
-                      ),
-                    ],
+      backgroundColor: const Color(0xFF0F172A),
+      body: Column(children: [
+        _buildHeader(),
+        Expanded(
+          child: Stack(children: [
+            if (_loading)
+              const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+            else if (_depts.isEmpty)
+              const Center(
+                  child: Text('No departments', style: TextStyle(color: Color(0xFF94A3B8))))
+            else
+              InteractiveViewer(
+                transformationController: _txCtrl,
+                minScale: 0.28,
+                maxScale: 3.5,
+                constrained: false,
+                boundaryMargin: const EdgeInsets.all(220),
+                child: GestureDetector(
+                  onTapDown: (d) => _onTap(d.localPosition),
+                  child: CustomPaint(
+                    size: const Size(_cw, _ch),
+                    painter: _IsoPainter(depts: _depts, grid: g, selId: _selId),
                   ),
                 ),
-              ],
-            ),
-          ),
-          // Products List
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: const Color(0xFF0F1419),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 12, bottom: 12),
-                    child: Text(
-                      'All Products',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredProducts.length,
-                      itemBuilder: (context, index) {
-                        final product = filteredProducts[index];
-                        final isLeftColumn = index % 2 == 0;
-
-                        if (!isLeftColumn &&
-                            index == filteredProducts.length - 1) {
-                          // Last item alone on right column
-                          return const SizedBox.shrink();
-                        }
-
-                        if (isLeftColumn) {
-                          final rightIndex = index + 1;
-                          final hasRight = rightIndex < filteredProducts.length;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _ProductCard(
-                                    product: product,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: hasRight
-                                      ? _ProductCard(
-                                          product: filteredProducts[rightIndex],
-                                        )
-                                      : const SizedBox.shrink(),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                ],
               ),
+            // Zoom controls
+            Positioned(
+              right: 14, top: 0, bottom: 0,
+              child: Center(child: _ZoomPanel(
+                onIn:    () => _scale(1.25),
+                onOut:   () => _scale(0.8),
+                onReset: () => _txCtrl.value = Matrix4.identity(),
+              )),
             ),
-          ),
-        ],
-      ),
+            // Legend
+            Positioned(
+              bottom: 16, left: 0, right: 0,
+              child: Center(child: _Legend()),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
-}
 
-class GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
-      ..strokeWidth = 1;
-
-    const spacing = 60.0;
-
-    // Vertical lines
-    for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        paint,
-      );
-    }
-
-    // Horizontal lines
-    for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-class Product3DPainter extends CustomPainter {
-  final List<Product> products;
-  final double rotation;
-
-  Product3DPainter({
-    required this.products,
-    required this.rotation,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // Sort products by depth for proper rendering order
-    final sortedProducts = List<Product>.from(products)
-      ..sort((a, b) => a.position3D.dy.compareTo(b.position3D.dy));
-
-    for (final product in sortedProducts) {
-      // Calculate 3D position with rotation
-      final angle = rotation + (product.position3D.dx * 2 * math.pi);
-      final distance = 150.0;
-
-      final x3D = math.cos(angle) * distance;
-      final y3D = product.position3D.dy * size.height - centerY / 2;
-
-      // Isometric projection
-      final screenX = centerX + (x3D * 0.7);
-      final screenY =
-          centerY + (y3D * 0.4) - (product.height * size.height * 0.3);
-
-      // Draw 3D box
-      _drawProduct3DBox(
-        canvas,
-        Offset(screenX, screenY),
-        product.height * size.height * 0.25,
-        product.status.color,
-      );
-    }
-  }
-
-  void _drawProduct3DBox(
-    Canvas canvas,
-    Offset position,
-    double height,
-    Color color,
-  ) {
-    const boxWidth = 40.0;
-    const boxDepth = 40.0;
-
-    // Front face
-    final frontPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final frontRect = Rect.fromLTWH(
-      position.dx - boxWidth / 2,
-      position.dy - height,
-      boxWidth,
-      height,
-    );
-
-    canvas.drawRect(frontRect, frontPaint);
-
-    // Top face (isometric)
-    final topPaint = Paint()
-      ..color = color.withOpacity(0.8)
-      ..style = PaintingStyle.fill;
-
-    final topPath = Path();
-    topPath.moveTo(position.dx - boxWidth / 2, position.dy - height);
-    topPath.lineTo(position.dx - boxWidth / 2 + 15, position.dy - height - 15);
-    topPath.lineTo(position.dx + boxWidth / 2 + 15, position.dy - height - 15);
-    topPath.lineTo(position.dx + boxWidth / 2, position.dy - height);
-    topPath.close();
-
-    canvas.drawPath(topPath, topPaint);
-
-    // Side face (isometric)
-    final sidePaint = Paint()
-      ..color = color.withOpacity(0.6)
-      ..style = PaintingStyle.fill;
-
-    final sidePath = Path();
-    sidePath.moveTo(position.dx + boxWidth / 2, position.dy - height);
-    sidePath.lineTo(position.dx + boxWidth / 2 + 15, position.dy - height - 15);
-    sidePath.lineTo(position.dx + boxWidth / 2 + 15, position.dy - 15);
-    sidePath.lineTo(position.dx + boxWidth / 2, position.dy);
-    sidePath.close();
-
-    canvas.drawPath(sidePath, sidePaint);
-
-    // Border
-    final borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawRect(frontRect, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(Product3DPainter oldDelegate) =>
-      rotation != oldDelegate.rotation || products != oldDelegate.products;
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Color color;
-  final int? count;
-
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.color,
-    this.count,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? color : const Color(0xFF1A1E2E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[700]!,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey[400],
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            if (count != null) ...[
-              const SizedBox(width: 4),
-              Text(
-                count.toString(),
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[500],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _LegendItem({
-    required this.color,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatBox extends StatelessWidget {
-  final String count;
-  final String label;
-  final Color color;
-
-  const _StatBox({
-    required this.count,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 24,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              count,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ProductCard extends StatelessWidget {
-  final Product product;
-
-  const _ProductCard({
-    required this.product,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1E2E),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.grey[800]!,
-          width: 1,
-        ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        border: Border(bottom: BorderSide(color: Color(0xFF334155))),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 14),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: 38, height: 38,
                 decoration: BoxDecoration(
-                  color: product.status.color,
-                  shape: BoxShape.circle,
-                ),
+                    color: const Color(0xFF334155),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.arrow_back, size: 20, color: Colors.white),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  product.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                product.id,
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 11,
-                ),
-              ),
-              Text(
-                '${product.quantity} units',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('3D Facility Map',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('ISET · ${_depts.length} departments · $_total equipment markers',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+              ]),
+            ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 8, height: 8,
+                  decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle)),
+              const SizedBox(width: 5),
+              const Text('Live',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF22C55E))),
+            ]),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Color(0xFF64748B), size: 20),
+              onPressed: _load,
+            ),
+          ]),
+        ),
       ),
     );
   }
+}
+
+// ─── Isometric painter ────────────────────────────────────────────────────────
+
+class _IsoPainter extends CustomPainter {
+  final List<_Dept> depts;
+  final Map<String, List<int>> grid;
+  final String? selId;
+
+  const _IsoPainter({required this.depts, required this.grid, this.selId});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _drawFloor(canvas, size);
+
+    // Back to front: lower (col+row) first
+    final order = [...depts]..sort((a, b) {
+      final ga = grid[a.code] ?? [0, 0];
+      final gb = grid[b.code] ?? [0, 0];
+      final sa = ga[0] + ga[1], sb = gb[0] + gb[1];
+      return sa != sb ? sa.compareTo(sb) : ga[1].compareTo(gb[1]);
+    });
+
+    for (final d in order) {
+      final p = grid[d.code];
+      if (p == null) continue;
+      _paintBlock(canvas, d, p[0], p[1], d.id == selId);
+    }
+  }
+
+  void _drawFloor(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF0F172A));
+    final paint = Paint()
+      ..color = const Color(0xFF1E293B)
+      ..strokeWidth = 0.8;
+    final stepX = _tw / 2;
+    final stepY = _th / 2;
+    final ratio = stepX / stepY;
+    for (double s = -_cw; s < _cw * 2; s += stepX) {
+      canvas.drawLine(Offset(s, 0), Offset(s + size.height * ratio, size.height), paint);
+      canvas.drawLine(Offset(s, 0), Offset(s - size.height * ratio, size.height), paint);
+    }
+  }
+
+  void _paintBlock(Canvas canvas, _Dept dept, int col, int row, bool sel) {
+    final a     = _apex(col, row);
+    final color = dept.color;
+
+    final vTop    = a;
+    final vRight  = a + Offset(_tw / 2,  _th / 2);
+    final vBottom = a + Offset(0,         _th);
+    final vLeft   = a + Offset(-_tw / 2,  _th / 2);
+    final vLeftBL = a + Offset(-_tw / 2,  _th / 2 + _wh);
+    final vBottomB= a + Offset(0,          _th + _wh);
+    final vRightBR= a + Offset(_tw / 2,   _th / 2 + _wh);
+
+    final stroke = Paint()
+      ..color = sel ? Colors.white.withOpacity(0.9) : color.withOpacity(0.45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sel ? 1.8 : 1.0;
+
+    // Right wall
+    canvas.drawPath(
+        Path()..addPolygon([vBottom, vRight, vRightBR, vBottomB], true),
+        Paint()..color = _cRight(color));
+    canvas.drawPath(Path()..addPolygon([vBottom, vRight, vRightBR, vBottomB], true), stroke);
+
+    // Left wall
+    canvas.drawPath(
+        Path()..addPolygon([vLeft, vBottom, vBottomB, vLeftBL], true),
+        Paint()..color = _cLeft(color));
+    canvas.drawPath(Path()..addPolygon([vLeft, vBottom, vBottomB, vLeftBL], true), stroke);
+
+    // Top face
+    final topPath = Path()..addPolygon([vTop, vRight, vBottom, vLeft], true);
+    canvas.drawPath(topPath, Paint()..color = _cTop(color));
+    if (sel) {
+      canvas.drawPath(topPath,
+          Paint()..color = Colors.white.withOpacity(0.15)..style = PaintingStyle.fill);
+    }
+    canvas.drawPath(topPath, stroke);
+
+    // Room dots
+    final rooms = dept.rooms.take(9).toList();
+    if (rooms.isNotEmpty) {
+      final cols = rooms.length <= 3 ? rooms.length : 3;
+      final rows = (rooms.length / 3).ceil();
+      for (int i = 0; i < rooms.length; i++) {
+        _paintRoomDot(canvas, rooms[i], _cellPos(a, i % 3, i ~/ 3, cols, rows));
+      }
+    }
+
+    // Dept code
+    final center = a + Offset(0, _th / 2);
+    _drawText(canvas, dept.code, center + const Offset(0, -9),
+        const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900,
+            shadows: [Shadow(blurRadius: 6, color: Colors.black54)]));
+
+    // Item count badge
+    if (dept.total > 0) {
+      _drawBadge(canvas, '${dept.total} items', center + const Offset(0, 9), color);
+    }
+
+    // Dept name below block
+    _drawText(canvas, dept.name, a + Offset(0, _th + _wh + 14),
+        TextStyle(color: color.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w600,
+            shadows: const [Shadow(blurRadius: 4, color: Colors.black)]));
+  }
+
+  void _paintRoomDot(Canvas canvas, _Room room, Offset pos) {
+    final c = room.critical > 0
+        ? const Color(0xFFEF4444)
+        : room.inMaintenance > 0
+            ? const Color(0xFFF59E0B)
+            : room.inStock > 0
+                ? const Color(0xFF22C55E)
+                : const Color(0xFF94A3B8);
+    // Glow
+    canvas.drawCircle(pos, 9,
+        Paint()..color = c.withOpacity(0.25)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    // White ring
+    canvas.drawCircle(pos, 8, Paint()..color = Colors.white.withOpacity(0.85));
+    // Color fill
+    canvas.drawCircle(pos, 7, Paint()..color = c);
+    // Initial letter
+    if (room.name.isNotEmpty) {
+      _drawText(canvas, room.name[0].toUpperCase(), pos,
+          const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900));
+    }
+  }
+
+  void _drawText(Canvas canvas, String text, Offset center, TextStyle style) {
+    final tp = TextPainter(
+        text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)
+      ..layout();
+    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  void _drawBadge(Canvas canvas, String text, Offset center, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+          text: text,
+          style: TextStyle(color: _cTop(color), fontSize: 9, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: tp.width + 14, height: tp.height + 6),
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(rect, Paint()..color = Colors.black45);
+    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(_IsoPainter old) => old.depts != depts || old.selId != selId;
+}
+
+// ─── Department sheet ─────────────────────────────────────────────────────────
+
+class _DeptSheet extends StatefulWidget {
+  final _Dept dept;
+  const _DeptSheet({required this.dept});
+  @override
+  State<_DeptSheet> createState() => _DeptSheetState();
+}
+
+class _DeptSheetState extends State<_DeptSheet> {
+  _Room? _openRoom;
+
+  @override
+  Widget build(BuildContext context) {
+    final dept  = widget.dept;
+    final color = dept.color;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeInOut,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
+        margin: const EdgeInsets.only(top: 60),
+        decoration: const BoxDecoration(
+            color: Color(0xFF1E293B),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Center(child: Container(
+              margin: const EdgeInsets.only(top: 12), width: 40, height: 4,
+              decoration: BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(2)))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+                child: Text(dept.code,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(dept.name,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('${dept.rooms.length} rooms · ${dept.total} items',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+              ])),
+            ]),
+          ),
+          const Divider(height: 24, color: Color(0xFF334155)),
+          if (_openRoom == null) _buildRoomGrid(dept, color) else _buildProductList(_openRoom!, color),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildRoomGrid(_Dept dept, Color color) {
+    if (dept.rooms.isEmpty) {
+      return Padding(padding: const EdgeInsets.all(32),
+          child: Center(child: Text('No rooms', style: TextStyle(color: Colors.grey[600]))));
+    }
+    return Flexible(
+      child: GridView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.6),
+        itemCount: dept.rooms.length,
+        itemBuilder: (_, i) => _RoomCard(
+            room: dept.rooms[i], color: color,
+            onTap: () => setState(() => _openRoom = dept.rooms[i])),
+      ),
+    );
+  }
+
+  Widget _buildProductList(_Room room, Color color) {
+    return Flexible(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => setState(() => _openRoom = null),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: const Color(0xFF334155), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
+              child: Text(room.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 8),
+            Text('${room.count} items', style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          ]),
+        ),
+        const Divider(height: 1, color: Color(0xFF334155)),
+        if (room.products.isEmpty)
+          Padding(padding: const EdgeInsets.all(32),
+              child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[700]),
+                const SizedBox(height: 8),
+                Text('No items here', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+              ])))
+        else
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+              itemCount: room.products.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF334155)),
+              itemBuilder: (_, i) {
+                final p = room.products[i];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(children: [
+                    Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                          color: p.dotColor.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.devices_other, size: 17, color: p.dotColor),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(p.name,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                      if (p.sku.isNotEmpty)
+                        Text(p.sku, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    ])),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: p.dotColor.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                      child: Text(p.statusLabel,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: p.dotColor)),
+                    ),
+                  ]),
+                );
+              },
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+// ─── Room card ────────────────────────────────────────────────────────────────
+
+class _RoomCard extends StatelessWidget {
+  final _Room room;
+  final Color color;
+  final VoidCallback onTap;
+  const _RoomCard({required this.room, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color.withOpacity(0.25))),
+          child: Row(children: [
+            Container(width: 8, height: 8,
+                decoration: BoxDecoration(color: room.statusColor, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+              Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+              Text('${room.count} items',
+                  style: TextStyle(fontSize: 10, color: color.withOpacity(0.7), fontWeight: FontWeight.w500)),
+            ])),
+            const Icon(Icons.chevron_right, size: 14, color: Color(0xFF475569)),
+          ]),
+        ),
+      );
+}
+
+// ─── Zoom panel ───────────────────────────────────────────────────────────────
+
+class _ZoomPanel extends StatelessWidget {
+  final VoidCallback onIn, onOut, onReset;
+  const _ZoomPanel({required this.onIn, required this.onOut, required this.onReset});
+
+  @override
+  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
+        _ZBtn(icon: Icons.add, onTap: onIn),
+        const SizedBox(height: 8),
+        _ZBtn(icon: Icons.remove, onTap: onOut),
+        const SizedBox(height: 8),
+        _ZBtn(label: '1:1', onTap: onReset),
+      ]);
+}
+
+class _ZBtn extends StatelessWidget {
+  final IconData? icon;
+  final String? label;
+  final VoidCallback onTap;
+  const _ZBtn({this.icon, this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF334155)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8)]),
+          child: icon != null
+              ? Icon(icon, size: 20, color: Colors.white70)
+              : Center(child: Text(label!,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white70))),
+        ),
+      );
+}
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
+
+class _Legend extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+            color: const Color(0xFF1E293B).withOpacity(0.92),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF334155))),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          _LDot(const Color(0xFF22C55E), 'In Stock'),
+          const SizedBox(width: 14),
+          _LDot(const Color(0xFFF59E0B), 'Maintenance'),
+          const SizedBox(width: 14),
+          _LDot(const Color(0xFFEF4444), 'Critical'),
+          const SizedBox(width: 14),
+          _LDot(const Color(0xFF94A3B8), 'Retired'),
+        ]),
+      );
+}
+
+class _LDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LDot(this.color, this.label);
+  @override
+  Widget build(BuildContext context) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+      ]);
 }

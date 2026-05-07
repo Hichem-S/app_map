@@ -7,6 +7,7 @@ class ProfileHeader extends StatelessWidget {
   final VoidCallback? onProfileTap;
   final VoidCallback? onNotificationTap;
   final VoidCallback? onSignOut;
+  final int notificationCount;
 
   const ProfileHeader({
     Key? key,
@@ -16,6 +17,7 @@ class ProfileHeader extends StatelessWidget {
     this.onProfileTap,
     this.onNotificationTap,
     this.onSignOut,
+    this.notificationCount = 0,
   }) : super(key: key);
 
   @override
@@ -122,6 +124,7 @@ class ProfileHeader extends StatelessWidget {
                 children: [
                   // Notifications Icon Button
                   Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       Container(
                         width: 40,
@@ -136,35 +139,49 @@ class ProfileHeader extends StatelessWidget {
                             onTap: onNotificationTap ?? () {},
                             borderRadius: BorderRadius.circular(20),
                             child: Icon(
-                              Icons.notifications_outlined,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              notificationCount > 0
+                                  ? Icons.notifications_rounded
+                                  : Icons.notifications_outlined,
+                              color: notificationCount > 0
+                                  ? const Color(0xFF3B5BDB)
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
                               size: 20,
                             ),
                           ),
                         ),
                       ),
-                      // Notification Badge
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEF4444),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFFEF4444),
-                                blurRadius: 4,
-                                spreadRadius: 0,
-                              ),
-                            ],
+                      // Notification Badge with count
+                      if (notificationCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                                minWidth: 18, minHeight: 18),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color(0xFFEF4444),
+                                    blurRadius: 4,
+                                    spreadRadius: 0),
+                              ],
+                            ),
+                            child: Text(
+                              notificationCount > 99
+                                  ? '99+'
+                                  : '$notificationCount',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ],

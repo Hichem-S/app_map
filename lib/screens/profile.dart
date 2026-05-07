@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/theme_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,12 +19,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _user;
   List<dynamic> _scanHistory = [];
   Map<String, dynamic>? _stats;
-  bool _loadingUser = true;
+  bool _loadingUser  = true;
+  bool _uploadingAvatar = false;
 
   @override
   void initState() {
     super.initState();
     _loadAll();
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              margin: const EdgeInsets.only(top: 10),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          ListTile(
+            leading: const CircleAvatar(
+                backgroundColor: Color(0xFFEEF2FF),
+                child: Icon(Icons.photo_library, color: Color(0xFF4F46E5))),
+            title: const Text('Choose from gallery',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const CircleAvatar(
+                backgroundColor: Color(0xFFEEF2FF),
+                child: Icon(Icons.camera_alt, color: Color(0xFF4F46E5))),
+            title: const Text('Take a photo',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 85, maxWidth: 800);
+    if (picked == null) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final res = await ApiService.uploadAvatar(picked);
+      if (mounted && res['success'] == true) {
+        setState(() => _user = res['data'] as Map<String, dynamic>);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo updated'),
+            backgroundColor: Color(0xFF22C55E),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Upload failed, please try again'),
+              backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
   }
 
   Future<void> _loadAll() async {
@@ -176,35 +244,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Stack(
             alignment: Alignment.center,
             children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
-                  gradient: LinearGradient(
-                    colors: [Colors.cyan[300]!, Colors.blue[400]!],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+              GestureDetector(
+                onTap: _pickAndUploadAvatar,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    gradient: LinearGradient(
+                      colors: [Colors.cyan[300]!, Colors.blue[400]!],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: Center(
-                    child: Text(
-                      _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 12,
+                        spreadRadius: 2,
                       ),
-                    ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32),
+                    child: _uploadingAvatar
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : _buildAvatarContent(),
                   ),
                 ),
               ),
@@ -222,22 +286,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              // Camera icon
+              // Camera button
               Positioned(
-                bottom: 8,
-                right: 8,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue,
-                    border: Border.all(color: Colors.white, width: 3),
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    color: Colors.white,
-                    size: 20,
+                bottom: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: _pickAndUploadAvatar,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.blue[700],
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 6),
+                      ],
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 17),
                   ),
                 ),
               ),
@@ -260,6 +326,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildAvatarContent() {
+    final avatarPath = _user?['avatar'] as String?;
+    final url = ApiService.avatarUrl(avatarPath);
+    if (url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: 120,
+        height: 120,
+        errorBuilder: (_, __, ___) => _avatarInitial(),
+        loadingBuilder: (_, child, progress) => progress == null
+            ? child
+            : const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+      );
+    }
+    return _avatarInitial();
+  }
+
+  Widget _avatarInitial() => Center(
+        child: Text(
+          _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
+          style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
+        ),
+      );
 
   Widget _buildRoleBadge(String text) {
     return Container(
@@ -1069,6 +1160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   TextButton(
                     onPressed: () {
                       Navigator.pop(dialogContext);
+                      context.read<AuthProvider>().clear();
                       Navigator.pushNamedAndRemoveUntil(
                         screenContext,
                         '/login',

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
+import '../models/department.dart';
+import '../utils/app_colors.dart';
+import 'dept_rooms_screen.dart';
 
 final _baseHost = ApiService.baseUrl.replaceAll('/api', '');
 
@@ -120,16 +123,58 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     setState(() { _isSearching = true; _scanned = true; });
 
     try {
+      final trimmed = raw.trim();
+
+      // ── ISET hierarchical QR codes ──────────────────────────────────────────
+      if (trimmed == 'ISET://institution') {
+        setState(() { _isSearching = false; _scanned = false; });
+        if (mounted) Navigator.pushNamed(context, '/vueinstitut');
+        return;
+      }
+
+      if (trimmed.startsWith('ISET://dept/')) {
+        final code = trimmed.substring('ISET://dept/'.length).trim();
+        setState(() { _isSearching = false; _scanned = false; });
+        if (!mounted) return;
+        // Load departments to find the one matching this code
+        final depts = await ApiService.getDepartments();
+        final match = depts.cast<Map<String, dynamic>>()
+            .where((d) => d['code'] == code)
+            .toList();
+        if (match.isEmpty) {
+          _snack('Department "$code" not found');
+          return;
+        }
+        if (mounted) {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => DeptRoomsScreen(
+              department: Department.fromJson(match.first),
+            ),
+          ));
+        }
+        return;
+      }
+
+      // ── Product QR ──────────────────────────────────────────────────────────
       String? productId;
-      final uri = Uri.tryParse(raw);
+      final uri = Uri.tryParse(trimmed);
       if (uri != null && uri.queryParameters.containsKey('id')) {
         productId = uri.queryParameters['id'];
       } else {
-        productId = raw.trim();
+        productId = trimmed;
       }
 
       if (productId == null || productId.isEmpty) {
         _snack('Invalid QR code');
+        return;
+      }
+
+      final uuidRegex = RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        caseSensitive: false,
+      );
+      if (!uuidRegex.hasMatch(productId)) {
+        _snack('QR code is not a valid product code');
         return;
       }
 
@@ -144,9 +189,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       } else {
         _snack(data['message'] ?? 'Product not found');
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      _snack('Connection error. Check your network.');
+      _snack('Error: $e');
     } finally {
       if (mounted) setState(() { _isSearching = false; _scanned = false; });
     }
@@ -166,6 +211,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Future<void> _showProductDialog(Product product) async {
+    // Stop camera while dialog is on screen to prevent white-screen on resume
+    await _cameraController.stop();
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -204,25 +251,29 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             if (product.description != null) ...[
               const SizedBox(height: 6),
               Text(product.description!,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                  style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
             ],
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Color(0xFF707070))),
+            child: const Text('Close', style: TextStyle(color: AppColors.textBody)),
           ),
         ],
       ),
     );
+    // Restart camera after dialog is dismissed
+    if (mounted && _cameraActive) {
+      await _cameraController.start();
+    }
   }
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Row(
           children: [
-            Text('$label: ', style: const TextStyle(fontSize: 13, color: Color(0xFF707070))),
+            Text('$label: ', style: const TextStyle(fontSize: 13, color: AppColors.textBody)),
             Expanded(
               child: Text(value,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -238,23 +289,33 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FF),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _cameraController.stop();
+        if (context.mounted) Navigator.pop(context);
+      },
+      child: Scaffold(
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textH),
+          onPressed: () async {
+            await _cameraController.stop();
+            if (context.mounted) Navigator.pop(context);
+          },
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('QR Code Scanner',
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textH)),
             Text('Scan to retrieve product info',
-                style: TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                style: TextStyle(fontSize: 12, color: AppColors.textBody)),
           ],
         ),
         actions: [
@@ -263,7 +324,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             IconButton(
               icon: Icon(
                 _cameraController.torchEnabled ? Icons.flash_on : Icons.flash_off,
-                color: _cameraController.torchEnabled ? Colors.amber : const Color(0xFF1A1A1A),
+                color: _cameraController.torchEnabled ? Colors.amber : AppColors.textH,
               ),
               onPressed: () => _cameraController.toggleTorch(),
             ),
@@ -271,7 +332,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             margin: const EdgeInsets.only(right: 16),
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF4C63FF),
+              color: AppColors.primary,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.qr_code_2, color: Colors.white, size: 24),
@@ -290,7 +351,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             padding: const EdgeInsets.all(12),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: AppColors.bgMuted,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -311,7 +372,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
         ],
       ),
-    );
+    ),   // Scaffold
+    );   // PopScope
   }
 
   // ─── Camera tab ──────────────────────────────────────────────────────────────
@@ -422,7 +484,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     icon: const Icon(Icons.videocam),
                     label: const Text('Resume Camera'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4C63FF),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
@@ -460,16 +522,16 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                   color: const Color(0xFFEBF2FF),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.search, color: Color(0xFF4C63FF), size: 22),
+                child: const Icon(Icons.search, color: AppColors.primary, size: 22),
               ),
               const SizedBox(width: 12),
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Search Product',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textH)),
                   Text('By name, SKU or barcode',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                      style: TextStyle(fontSize: 12, color: AppColors.textBody)),
                 ],
               ),
             ],
@@ -493,8 +555,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               onSubmitted: (_) => _onQRDetected(_manualController.text),
               decoration: InputDecoration(
                 hintText: 'Name, SKU, barcode or QR URL…',
-                hintStyle: const TextStyle(color: Color(0xFFB0B0B0), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF4C63FF)),
+                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -502,11 +564,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       const Padding(
                         padding: EdgeInsets.only(right: 8),
                         child: SizedBox(width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4C63FF))),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
                       )
                     else if (_manualController.text.isNotEmpty)
                       IconButton(
-                        icon: const Icon(Icons.close, color: Color(0xFFB0B0B0), size: 20),
+                        icon: const Icon(Icons.close, color: AppColors.textMuted, size: 20),
                         onPressed: () {
                           _manualController.clear();
                           setState(() => _suggestions = []);
@@ -542,10 +604,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: Row(
                       children: [
-                        const Icon(Icons.lightbulb_outline, color: Color(0xFF4C63FF), size: 16),
+                        const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 16),
                         const SizedBox(width: 6),
                         Text('${_suggestions.length} result${_suggestions.length > 1 ? 's' : ''}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                            style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
                       ],
                     ),
                   ),
@@ -569,7 +631,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                             Container(
                               width: 42, height: 42,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF5F5F5),
+                                color: AppColors.bgMuted,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: s['photo_url'] != null
@@ -579,10 +641,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                                         '$_baseHost${s['photo_url']}',
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.inventory_2_outlined, color: Color(0xFFB0B0B0), size: 22),
+                                            const Icon(Icons.inventory_2_outlined, color: AppColors.textMuted, size: 22),
                                       ),
                                     )
-                                  : const Icon(Icons.inventory_2_outlined, color: Color(0xFFB0B0B0), size: 22),
+                                  : const Icon(Icons.inventory_2_outlined, color: AppColors.textMuted, size: 22),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -591,16 +653,16 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                                 children: [
                                   Text(s['name'] ?? '',
                                       style: const TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A))),
+                                          fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
                                       Text(s['sku'] ?? '',
-                                          style: const TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                                          style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
                                       if (s['category_name'] != null) ...[
-                                        const Text(' · ', style: TextStyle(color: Color(0xFFB0B0B0))),
+                                        const Text(' · ', style: TextStyle(color: AppColors.textMuted)),
                                         Text(s['category_name'],
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                                            style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
                                       ],
                                     ],
                                   ),
@@ -630,7 +692,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                const Icon(Icons.chevron_right, color: Color(0xFFB0B0B0), size: 18),
+                                const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
                               ],
                             ),
                           ],
@@ -654,12 +716,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search_off, color: Color(0xFFB0B0B0), size: 20),
+                  const Icon(Icons.search_off, color: AppColors.textMuted, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'No product found for "${_manualController.text}".\nTry searching by SKU or UUID.',
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF707070)),
+                      style: const TextStyle(fontSize: 13, color: AppColors.textBody),
                     ),
                   ),
                 ],
@@ -678,12 +740,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                   : () => _onQRDetected(_manualController.text),
               icon: _isSearching
                   ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4C63FF)))
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                   : const Icon(Icons.qr_code, size: 18),
               label: const Text('Search by UUID / QR URL'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF4C63FF),
-                side: const BorderSide(color: Color(0xFF4C63FF)),
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -715,23 +777,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         children: [
           const Row(
             children: [
-              Icon(Icons.history, color: Color(0xFF4C63FF), size: 20),
+              Icon(Icons.history, color: AppColors.primary, size: 20),
               SizedBox(width: 8),
               Text('Recent Scans',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textH)),
             ],
           ),
           const SizedBox(height: 12),
           if (_historyLoading)
             const Center(child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4C63FF)),
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
             ))
           else if (_recentScans.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(
-                child: Text('No scans yet', style: TextStyle(color: Color(0xFF707070), fontSize: 13)),
+                child: Text('No scans yet', style: TextStyle(color: AppColors.textBody, fontSize: 13)),
               ),
             )
           else
@@ -739,7 +801,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FF),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -750,7 +812,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         color: const Color(0xFFEBF2FF),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.qr_code_2, color: Color(0xFF4C63FF), size: 24),
+                      child: const Icon(Icons.qr_code_2, color: AppColors.primary, size: 24),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -759,9 +821,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         children: [
                           Text(scan['name']!,
                               style: const TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A))),
+                                  fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
                           Text('${scan['code']} · ${scan['time']}',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF707070))),
+                              style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
                         ],
                       ),
                     ),
@@ -802,13 +864,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: selected ? const Color(0xFF1A1A1A) : const Color(0xFF707070)),
+              Icon(icon, size: 18, color: selected ? AppColors.textH : AppColors.textBody),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                      color: selected ? const Color(0xFF1A1A1A) : const Color(0xFF707070))),
+                      color: selected ? AppColors.textH : AppColors.textBody)),
             ],
           ),
         ),
@@ -823,10 +885,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         width: 24, height: 24,
         decoration: BoxDecoration(
           border: Border(
-            left: left ? const BorderSide(color: Color(0xFF4C63FF), width: 3) : BorderSide.none,
-            right: !left ? const BorderSide(color: Color(0xFF4C63FF), width: 3) : BorderSide.none,
-            top: top ? const BorderSide(color: Color(0xFF4C63FF), width: 3) : BorderSide.none,
-            bottom: !top ? const BorderSide(color: Color(0xFF4C63FF), width: 3) : BorderSide.none,
+            left: left ? const BorderSide(color: AppColors.primary, width: 3) : BorderSide.none,
+            right: !left ? const BorderSide(color: AppColors.primary, width: 3) : BorderSide.none,
+            top: top ? const BorderSide(color: AppColors.primary, width: 3) : BorderSide.none,
+            bottom: !top ? const BorderSide(color: AppColors.primary, width: 3) : BorderSide.none,
           ),
         ),
       ),

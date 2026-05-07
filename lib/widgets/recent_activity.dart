@@ -26,12 +26,39 @@ class _RecentActivityState extends State<RecentActivity> {
         _items = history.take(5).map((e) {
           final item = e as Map<String, dynamic>;
           final scannedAt = DateTime.tryParse(item['scanned_at'] ?? '');
+          final type = item['type'] ?? 'scan';
+
+          final IconData icon;
+          final Color color;
+          final String action;
+          final String subtitle;
+
+          switch (type) {
+            case 'product_added':
+              icon = Icons.add_box_rounded;
+              color = const Color(0xFF16A34A);
+              action = 'Item Ajouté';
+              subtitle = item['category_name'] ?? item['sku'] ?? '';
+              break;
+            case 'dept_qr':
+              icon = Icons.account_balance_rounded;
+              color = const Color(0xFF00897B);
+              action = 'QR Département';
+              subtitle = 'Code: ${item['department_code'] ?? ''}';
+              break;
+            default: // 'scan'
+              icon = Icons.qr_code_scanner;
+              color = const Color(0xFF3B82F6);
+              action = 'QR Scanné';
+              subtitle = item['category_name'] ?? item['sku'] ?? '';
+          }
+
           return _ActivityItem(
-            icon: Icons.qr_code_scanner,
-            color: const Color(0xFF3B82F6),
-            action: 'QR Scanned',
+            icon: icon,
+            color: color,
+            action: action,
             description: item['name'] ?? '—',
-            subtitle: item['category_name'] ?? item['sku'] ?? '',
+            subtitle: subtitle,
             timestamp: scannedAt != null ? _timeAgo(scannedAt) : '',
           );
         }).toList();

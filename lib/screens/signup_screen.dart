@@ -18,6 +18,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
   bool _isLoading = false;
+  String _selectedRole = 'technicien';
 
   @override
   void dispose() {
@@ -58,16 +59,23 @@ class _SignupScreenState extends State<SignupScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final data = await ApiService.register(name, email, password);
+      final data = await ApiService.register(name, email, password, role: _selectedRole);
       if (!mounted) return;
-      if (data['success'] == true) {
+      if (data['success'] == true && data['requiresVerification'] == true) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/verify-email',
+          (_) => false,
+          arguments: email,
+        );
+      } else if (data['success'] == true) {
         Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
       } else {
         _snack(data['message'] ?? 'Registration failed');
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      _snack('Connection error. Check your network.');
+      _snack('Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -379,6 +387,30 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                    // Role selector
+                    const Text(
+                      'Rôle',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      _RoleChip(
+                        label: 'Technicien',
+                        icon: Icons.build_outlined,
+                        value: 'technicien',
+                        selected: _selectedRole == 'technicien',
+                        onTap: () => setState(() => _selectedRole = 'technicien'),
+                      ),
+                      const SizedBox(width: 8),
+                      _RoleChip(
+                        label: 'Magazinier',
+                        icon: Icons.inventory_2_outlined,
+                        value: 'magazinier',
+                        selected: _selectedRole == 'magazinier',
+                        onTap: () => setState(() => _selectedRole = 'magazinier'),
+                      ),
+                    ]),
+                    const SizedBox(height: 16),
                     // Terms and Conditions Checkbox
                     Row(
                       children: [
@@ -554,6 +586,47 @@ class _SignupScreenState extends State<SignupScreen> {
               const SizedBox(height: 40),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final String value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RoleChip({
+    required this.label, required this.icon, required this.value,
+    required this.selected, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF4C63FF);
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFEEF2FF) : const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: selected ? color : Colors.transparent, width: 1.5),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 22, color: selected ? color : const Color(0xFFB0B0B0)),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    color: selected ? color : const Color(0xFF707070))),
+          ]),
         ),
       ),
     );
