@@ -87,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: _selectedIndex,
         notifCount: _notifCount,
         showReports: context.watch<AuthProvider>().canViewReports,
+        showUsers: context.watch<AuthProvider>().canManageUsers,
         onTap: (i) {
           setState(() => _selectedIndex = i);
           switch (i) {
@@ -98,6 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
             case 3: _showMapsSheet(); break;
             case 4:
               Navigator.pushNamed(context, '/profile')
+                  .then((_) { if (mounted) setState(() => _selectedIndex = 0); });
+              break;
+            case 5:
+              Navigator.pushNamed(context, '/admin/users')
                   .then((_) { if (mounted) setState(() => _selectedIndex = 0); });
               break;
           }
@@ -403,6 +408,7 @@ class _BottomNav extends StatelessWidget {
   final int selectedIndex;
   final int notifCount;
   final bool showReports;
+  final bool showUsers;
   final void Function(int) onTap;
   final VoidCallback onScanTap;
 
@@ -410,6 +416,7 @@ class _BottomNav extends StatelessWidget {
     required this.selectedIndex,
     required this.notifCount,
     required this.showReports,
+    required this.showUsers,
     required this.onTap,
     required this.onScanTap,
   });
@@ -449,6 +456,9 @@ class _BottomNav extends StatelessWidget {
           // Reports tab — hidden for magazinier
           if (showReports)
             _item(3, Icons.map_rounded, Icons.map_outlined, 'Maps'),
+          // Users tab — admin only
+          if (showUsers)
+            _item(5, Icons.group_rounded, Icons.group_outlined, 'Users'),
           _item(4, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
         ],
       ),
