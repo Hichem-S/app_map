@@ -243,6 +243,19 @@ class _NotifCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (notif.body.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(children: [
+                        const Icon(Icons.person_outline_rounded,
+                            size: 12, color: Colors.black38),
+                        const SizedBox(width: 4),
+                        Text(notif.body,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w500)),
+                      ]),
+                    ],
                   ],
                 ),
               ),

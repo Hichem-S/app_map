@@ -4,6 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import '../providers/theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
+import '../services/ws_service.dart';
+import 'notifications_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -13,7 +16,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool notificationsEnabled = true;
+  bool get notificationsEnabled => !NotificationService.instance.muted;
   bool biometricEnabled = true;
 
   Map<String, dynamic>? _user;
@@ -121,10 +124,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     if (_loadingUser) {
       return const Scaffold(
+        backgroundColor: Color(0xFFF5F6FA),
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      },
+      child: Scaffold(
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -177,7 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
-    );
+      ),  // Scaffold
+    );    // PopScope
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -200,7 +215,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacementNamed(context, '/home');
+                  }
+                },
                 child: Container(
                   width: 40,
                   height: 40,
@@ -223,7 +244,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {},
+                onTap: () => _showEditProfileSheet(context),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -503,18 +524,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.3)),
-            ),
-            child: const Text(
-              'Voir →',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/vueinstitut'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.3)),
+              ),
+              child: const Text(
+                'Voir →',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -856,7 +880,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           iconColor: Colors.purple,
           title: 'Profil actif : $_userName',
           subtitle: _userRole,
-          onTap: () {},
+          onTap: () {
+            final auth = context.read<AuthProvider>();
+            if (auth.canManageUsers) {
+              Navigator.pushNamed(context, '/admin/users');
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Contact an admin to manage accounts'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          },
         ),
       ],
     );
@@ -883,7 +919,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle: 'Alertes état équipement',
           value: notificationsEnabled,
           onChanged: (value) {
-            setState(() => notificationsEnabled = value);
+            NotificationService.instance.setMuted(!value);
+            setState(() {});
           },
         ),
         const SizedBox(height: 12),
@@ -967,6 +1004,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildApplicationSection(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -980,37 +1018,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 12),
+
+        // Notifications — all roles
         _buildNavigableItem(
-          icon: Icons.qr_code,
-          iconColor: Colors.purple,
-          title: 'Hierarchical Scanner',
-          subtitle: 'ISET → Dept. → Room → Equip.',
-          onTap: () {},
+          icon: Icons.notifications_outlined,
+          iconColor: Colors.red,
+          title: 'Notifications',
+          subtitle: 'Item moves & alerts',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const NotificationsScreen())),
         ),
         const SizedBox(height: 12),
+
+        // Equipment list — all roles
         _buildNavigableItem(
-          icon: Icons.apartment,
-          iconColor: Colors.blue,
-          title: 'Vue Institut ISET',
-          subtitle: 'All departments',
-          onTap: () {},
-        ),
-        const SizedBox(height: 12),
-        _buildNavigableItem(
-          icon: Icons.crop_square,
+          icon: Icons.inventory_2_outlined,
           iconColor: Colors.teal,
-          title: 'Scanner Avancé',
-          subtitle: 'Barcode & QR dual-mode',
-          onTap: () {},
+          title: 'Equipment List',
+          subtitle: 'Browse all inventory items',
+          onTap: () => Navigator.pushNamed(context, '/list_equipment'),
         ),
         const SizedBox(height: 12),
+
+        // QR scanner — all roles, but label differs
         _buildNavigableItem(
-          icon: Icons.map,
-          iconColor: Colors.green,
-          title: 'Carte Équipements',
-          subtitle: 'Localisation 2D interactive',
-          onTap: () {},
+          icon: Icons.qr_code_scanner,
+          iconColor: Colors.purple,
+          title: 'QR Scanner',
+          subtitle: auth.canViewMaps
+              ? 'Scan items, rooms & departments'
+              : 'Scan inventory items',
+          onTap: () => Navigator.pushNamed(context, '/qrscanner'),
         ),
+
+        // Hierarchical scanner — admin & technicien only
+        if (auth.canViewMaps) ...[
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.account_tree_outlined,
+            iconColor: Colors.indigo,
+            title: 'Hierarchical Scanner',
+            subtitle: 'ISET → Dept. → Room → Equipment',
+            onTap: () => Navigator.pushNamed(context, '/scan_qr_hiearchique'),
+          ),
+        ],
+
+        // Add equipment — magazinier only
+        if (auth.canAddProduct) ...[
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.add_box_outlined,
+            iconColor: Colors.teal,
+            title: 'Add Equipment',
+            subtitle: 'Register a new inventory item',
+            onTap: () => Navigator.pushNamed(context, '/addproduct'),
+          ),
+        ],
+
+        // Maps — admin & technicien only
+        if (auth.canViewMaps) ...[
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.map_outlined,
+            iconColor: Colors.green,
+            title: 'Equipment Map 2D',
+            subtitle: 'Interactive 2D room layout',
+            onTap: () => Navigator.pushNamed(context, '/equipmentmap'),
+          ),
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.view_in_ar_outlined,
+            iconColor: Colors.blue,
+            title: 'Equipment Map 3D',
+            subtitle: 'Interactive 3D room layout',
+            onTap: () => Navigator.pushNamed(context, '/3dmap'),
+          ),
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.apartment_outlined,
+            iconColor: Colors.indigo,
+            title: 'Institute View 3D',
+            subtitle: 'ISET Mahdia — all departments',
+            onTap: () => Navigator.pushNamed(context, '/vueinstitut'),
+          ),
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.swap_horiz_rounded,
+            iconColor: Colors.orange,
+            title: 'Move Log',
+            subtitle: 'Track every item relocation',
+            onTap: () => Navigator.pushNamed(context, '/movelog'),
+          ),
+        ],
+
+        // User management — admin only
+        if (auth.canManageUsers) ...[
+          const SizedBox(height: 12),
+          _buildNavigableItem(
+            icon: Icons.manage_accounts_outlined,
+            iconColor: Colors.red,
+            title: 'Manage Users',
+            subtitle: 'Roles, accounts, access control',
+            onTap: () => Navigator.pushNamed(context, '/admin/users'),
+          ),
+        ],
       ],
     );
   }
@@ -1034,7 +1145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           iconColor: Colors.amber,
           title: 'Aide & FAQ',
           subtitle: 'Centre d\'aide ISET',
-          onTap: () {},
+          onTap: () => _showFaqDialog(context),
         ),
         const SizedBox(height: 12),
         _buildNavigableItem(
@@ -1043,7 +1154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'À propos',
           subtitle: 'Smart Inventory v2.4 — ISET Mahdia',
           trailing: 'v2.4',
-          onTap: () {},
+          onTap: () => _showAboutDialog(context),
         ),
       ],
     );
@@ -1161,6 +1272,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () {
                       Navigator.pop(dialogContext);
                       context.read<AuthProvider>().clear();
+                      NotificationService.instance.reset();
+                      WsService.disconnect();
                       Navigator.pushNamedAndRemoveUntil(
                         screenContext,
                         '/login',
@@ -1385,6 +1498,146 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ── Edit profile bottom sheet ────────────────────────────────────────────────
+
+  void _showEditProfileSheet(BuildContext context) {
+    final nameCtrl  = TextEditingController(text: _userName);
+    final emailCtrl = TextEditingController(text: _userEmail);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          const Text('Edit Profile',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 20),
+          TextField(
+            controller: nameCtrl,
+            decoration: InputDecoration(
+              labelText: 'Full Name',
+              prefixIcon: const Icon(Icons.person_outline),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: emailCtrl,
+            readOnly: true,
+            decoration: InputDecoration(
+              labelText: 'Email (read-only)',
+              prefixIcon: const Icon(Icons.email_outlined),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              filled: true,
+              fillColor: Colors.grey[100],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A7CFC),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Profile updated'),
+                    backgroundColor: Color(0xFF22C55E),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: const Text('Save Changes',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ── FAQ dialog ────────────────────────────────────────────────────────────────
+
+  void _showFaqDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.help_outline, color: Colors.amber),
+          SizedBox(width: 8),
+          Text('Aide & FAQ'),
+        ]),
+        content: const SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _FaqItem(
+              q: 'How do I scan an item?',
+              a: 'Tap "QR Scanner" and point the camera at any QR code on equipment, rooms, or departments.',
+            ),
+            SizedBox(height: 12),
+            _FaqItem(
+              q: 'How do I move equipment on the map?',
+              a: 'Open Equipment Map 2D, tap the move icon (↔) in the header, select an item, then tap the destination room.',
+            ),
+            SizedBox(height: 12),
+            _FaqItem(
+              q: 'Who gets notified when equipment moves?',
+              a: 'All technicians and admins receive a notification when any item is relocated.',
+            ),
+            SizedBox(height: 12),
+            _FaqItem(
+              q: 'How do I change a user role?',
+              a: 'Admin only: go to Manage Users and tap on the user to change their role.',
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── About dialog ─────────────────────────────────────────────────────────────
+
+  void _showAboutDialog(BuildContext ctx) {
+    showAboutDialog(
+      context: ctx,
+      applicationName: 'Smart Inventory ISET',
+      applicationVersion: '2.4.0',
+      applicationLegalese: '© 2024 ISET Mahdia — All rights reserved',
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'Smart Inventory is a real-time equipment tracking system for ISET Mahdia. '
+          'It allows technicians and administrators to locate, move, and manage institutional assets using QR codes and interactive maps.',
+          style: TextStyle(fontSize: 13),
+        ),
+      ],
+    );
+  }
+
   Widget _buildFooter() {
     return Text(
       'Higher Institute of Technological Studies of Mahdia © 2024 — All rights reserved',
@@ -1404,4 +1657,22 @@ class _BadgeItem {
   final bool unlocked;
 
   _BadgeItem(this.name, this.icon, this.color, this.unlocked);
+}
+
+class _FaqItem extends StatelessWidget {
+  final String q;
+  final String a;
+  const _FaqItem({required this.q, required this.a});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(q,
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 4),
+      Text(a,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+    ]);
+  }
 }

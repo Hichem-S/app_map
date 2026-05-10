@@ -264,16 +264,18 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   // ─── Image ───────────────────────────────────────────────────────────────────
 
   Future<void> _pickImage(ImageSource source) async {
+    debugPrint('[ADD_PRODUCT] _pickImage called source=$source');
     try {
       final (file, bytes) =
           await pickImageFromSource(source == ImageSource.camera);
+      debugPrint('[ADD_PRODUCT] file=$file bytesLen=${bytes?.length}');
       if (file == null || !mounted) return;
       setState(() { _pickedXFile = file; _imageBytes = bytes; });
-    } catch (e) {
+      debugPrint('[ADD_PRODUCT] _imageBytes set: ${_imageBytes?.length} bytes');
+    } catch (e, st) {
+      debugPrint('[ADD_PRODUCT] picker error: $e\n$st');
       if (!mounted) return;
-      _snack(source == ImageSource.camera
-          ? 'Camera not available. Try Gallery instead.'
-          : 'Could not open gallery. Check storage permission.');
+      _snack('Photo error: $e');
     }
   }
 
@@ -292,6 +294,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     final specs = _collectSpecs();
 
     setState(() => _isLoading = true);
+    debugPrint('[SUBMIT] photo=${_pickedXFile?.name} imageBytes=${_imageBytes?.length}');
     try {
       final stockLoc = _locationType == 'stock' ? _stockController.text.trim() : null;
       final data = await ApiService.createProduct(
@@ -306,16 +309,13 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
         storageLocation: stockLoc?.isEmpty == true ? null : stockLoc,
         roomId:          _locationType == 'room' ? _selectedRoomId : null,
         photo:           _pickedXFile,
+        photoBytes:      _imageBytes,
         specifications:  specs.isEmpty ? null : specs,
       );
 
       if (!mounted) return;
       if (data['success'] == true) {
         final product = data['data'] as Map;
-        ApiService.addScanHistory(
-          product['id'].toString(),
-          actionType: 'product_added',
-        );
         _showSuccessDialog(product);
       } else {
         _snack(data['message'] ?? 'Failed to add product');
@@ -331,6 +331,9 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   // ─── Dialogs / snack ─────────────────────────────────────────────────────────
 
   void _showSuccessDialog(Map product) {
+    final photoUrl = product['photo_url'] as String?;
+    final baseHost = ApiService.baseUrl.replaceAll('/api', '');
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -341,39 +344,60 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
           SizedBox(width: 8),
           Text('Product Added!'),
         ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(product['name'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text('SKU: ${product['sku'] ?? ''}',
-                style: const TextStyle(color: Color(0xFF707070))),
-            if (product['barcode'] != null) ...[
-              const SizedBox(height: 2),
-              Text('Barcode: ${product['barcode']}',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Product photo (if uploaded)
+              if (_imageBytes != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(
+                    _imageBytes!,
+                    height: 120, width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(product['name'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text('SKU: ${product['sku'] ?? ''}',
                   style: const TextStyle(color: Color(0xFF707070))),
+              if (product['barcode'] != null) ...[
+                const SizedBox(height: 2),
+                Text('Barcode: ${product['barcode']}',
+                    style: const TextStyle(color: Color(0xFF707070))),
+              ],
+              if (photoUrl != null && photoUrl.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Photo: $baseHost$photoUrl',
+                    style: const TextStyle(fontSize: 10, color: Color(0xFF9090A0))),
+              ],
+              const SizedBox(height: 12),
+              const Text('A QR code has been generated for this product.',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF707070))),
+              const SizedBox(height: 8),
+              FutureBuilder<String?>(
+                future: ApiService.getToken(),
+                builder: (context, snap) {
+                  if (!snap.hasData) return const CircularProgressIndicator();
+                  return Center(
+                    child: Image.network(
+                      ApiService.productQrUrl(product['id'],
+                          qrImageUrl: product['qr_image_url'] as String?),
+                      height: 150, width: 150,
+                      headers: {'Authorization': 'Bearer ${snap.data}'},
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.qr_code, size: 80, color: Color(0xFF4F46E5)),
+                    ),
+                  );
+                },
+              ),
             ],
-            const SizedBox(height: 12),
-            const Text('A QR code has been generated for this product.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF707070))),
-            const SizedBox(height: 8),
-            FutureBuilder<String?>(
-              future: ApiService.getToken(),
-              builder: (context, snap) {
-                if (!snap.hasData) return const CircularProgressIndicator();
-                return Image.network(
-                  ApiService.productQrUrl(product['id'],
-                      qrImageUrl: product['qr_image_url'] as String?),
-                  height: 150, width: 150,
-                  headers: {'Authorization': 'Bearer ${snap.data}'},
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.qr_code, size: 80, color: Color(0xFF4F46E5)),
-                );
-              },
-            ),
-          ],
+          ),
         ),
         actions: [
           ElevatedButton(

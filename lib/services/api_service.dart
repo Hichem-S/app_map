@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -44,11 +45,13 @@ class ApiService {
   // ─── Auth ────────────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> register(
-      String name, String email, String password, {String role = 'technicien'}) async {
+      String name, String email, String password,
+      {String role = 'technicien'}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'email': email, 'password': password, 'role': role}),
+      body: jsonEncode(
+          {'name': name, 'email': email, 'password': password, 'role': role}),
     );
     // No tokens returned until email is verified
     return jsonDecode(res.body) as Map<String, dynamic>;
@@ -185,7 +188,8 @@ class ApiService {
     return (data['data'] as List<dynamic>?) ?? [];
   }
 
-  static Future<Map<String, dynamic>> updateUserRole(String userId, String role) async {
+  static Future<Map<String, dynamic>> updateUserRole(
+      String userId, String role) async {
     final res = await http.patch(
       Uri.parse('$baseUrl/auth/users/$userId/role'),
       headers: await _authHeaders(),
@@ -317,14 +321,19 @@ class ApiService {
     }
   }
 
-  static Future<void> _attachPhoto(
-      http.MultipartRequest request, XFile photo) async {
-    final bytes = await photo.readAsBytes();
+  static Future<void> _attachPhoto(http.MultipartRequest request, XFile photo,
+      [Uint8List? preReadBytes]) async {
+    final bytes = preReadBytes ?? await photo.readAsBytes();
+    final filename =
+        photo.name.contains('/') ? photo.name.split('/').last : photo.name;
+    final ct = _mediaType(photo);
+    debugPrint(
+        '[ATTACH_PHOTO] bytes=${bytes.length} filename=$filename contentType=$ct');
     request.files.add(http.MultipartFile.fromBytes(
       'photo',
       bytes,
-      filename: photo.name,
-      contentType: _mediaType(photo),
+      filename: filename.isEmpty ? 'photo.jpg' : filename,
+      contentType: ct,
     ));
   }
 
@@ -433,6 +442,7 @@ class ApiService {
     String? storageLocation,
     String? roomId,
     XFile? photo,
+    Uint8List? photoBytes,
     Map<String, dynamic>? specifications,
   }) async {
     final token = await getToken();
@@ -454,7 +464,7 @@ class ApiService {
     if (specifications != null && specifications.isNotEmpty) {
       request.fields['specifications'] = jsonEncode(specifications);
     }
-    if (photo != null) await _attachPhoto(request, photo);
+    if (photo != null) await _attachPhoto(request, photo, photoBytes);
 
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
@@ -474,6 +484,7 @@ class ApiService {
     String? storageLocation,
     String? roomId,
     XFile? photo,
+    Uint8List? photoBytes,
     Map<String, dynamic>? specifications,
   }) async {
     final token = await getToken();
@@ -495,7 +506,7 @@ class ApiService {
     if (specifications != null && specifications.isNotEmpty) {
       request.fields['specifications'] = jsonEncode(specifications);
     }
-    if (photo != null) await _attachPhoto(request, photo);
+    if (photo != null) await _attachPhoto(request, photo, photoBytes);
 
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
@@ -530,6 +541,16 @@ class ApiService {
   }
 
   // ─── Scan history ─────────────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getMoveLog() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/products/move-log'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode != 200) return [];
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['data'] as List<dynamic>?) ?? [];
+  }
 
   static Future<List<dynamic>> getScanHistory() async {
     final res = await http.get(

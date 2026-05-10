@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
@@ -9,8 +10,9 @@ class RecentActivity extends StatefulWidget {
 }
 
 class _RecentActivityState extends State<RecentActivity> {
-  List<_ActivityItem> _items = [];
+  List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -19,62 +21,28 @@ class _RecentActivityState extends State<RecentActivity> {
   }
 
   Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
       final history = await ApiService.getScanHistory();
       if (!mounted) return;
       setState(() {
-        _items = history.take(5).map((e) {
-          final item = e as Map<String, dynamic>;
-          final scannedAt = DateTime.tryParse(item['scanned_at'] ?? '');
-          final type = item['type'] ?? 'scan';
-
-          final IconData icon;
-          final Color color;
-          final String action;
-          final String subtitle;
-
-          switch (type) {
-            case 'product_added':
-              icon = Icons.add_box_rounded;
-              color = const Color(0xFF16A34A);
-              action = 'Item Ajouté';
-              subtitle = item['category_name'] ?? item['sku'] ?? '';
-              break;
-            case 'dept_qr':
-              icon = Icons.account_balance_rounded;
-              color = const Color(0xFF00897B);
-              action = 'QR Département';
-              subtitle = 'Code: ${item['department_code'] ?? ''}';
-              break;
-            default: // 'scan'
-              icon = Icons.qr_code_scanner;
-              color = const Color(0xFF3B82F6);
-              action = 'QR Scanné';
-              subtitle = item['category_name'] ?? item['sku'] ?? '';
-          }
-
-          return _ActivityItem(
-            icon: icon,
-            color: color,
-            action: action,
-            description: item['name'] ?? '—',
-            subtitle: subtitle,
-            timestamp: scannedAt != null ? _timeAgo(scannedAt) : '',
-          );
-        }).toList();
+        _items = history.take(8).map((e) => e as Map<String, dynamic>).toList();
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
   }
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
+  String _timeAgo(String? raw) {
+    if (raw == null) return '';
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt.toLocal());
+    if (diff.inMinutes < 1)  return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inHours < 24)   return '${diff.inHours}h ago';
+    if (diff.inDays < 7)     return '${diff.inDays}d ago';
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
@@ -84,129 +52,337 @@ class _RecentActivityState extends State<RecentActivity> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 24),
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4A7CFC)),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return GestureDetector(
+        onTap: _load,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9), shape: BoxShape.circle),
+                  child: const Icon(Icons.refresh_rounded, color: Color(0xFFB0B7C3), size: 24),
+                ),
+                const SizedBox(height: 10),
+                const Text('Tap to retry',
+                    style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 13)),
+              ],
+            ),
+          ),
         ),
       );
     }
 
     if (_items.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 32),
         child: Center(
-          child: Text(
-            'No recent activity',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.history_toggle_off_outlined,
+                    size: 28, color: Color(0xFFB0B7C3)),
+              ),
+              const SizedBox(height: 12),
+              const Text('No recent activity',
+                  style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              const Text('Scan a QR code to get started',
+                  style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)),
+            ],
           ),
         ),
       );
     }
 
-    return Column(
-      children: [
-        for (int i = 0; i < _items.length; i++)
-          _ActivityRow(item: _items[i], isLast: i == _items.length - 1),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _items.length,
+          separatorBuilder: (_, __) =>
+              Divider(height: 1, indent: 72, endIndent: 16, color: Colors.grey[100]),
+          itemBuilder: (ctx, i) => _ActivityTile(
+            item: _items[i],
+            timeAgo: _timeAgo(_items[i]['scanned_at'] as String?),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _ActivityItem {
-  final IconData icon;
-  final Color color;
-  final String action;
-  final String description;
-  final String subtitle;
-  final String timestamp;
+// ─── Single activity tile ─────────────────────────────────────────────────────
 
-  _ActivityItem({
-    required this.icon,
-    required this.color,
-    required this.action,
-    required this.description,
-    required this.subtitle,
-    required this.timestamp,
-  });
-}
+class _ActivityTile extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final String timeAgo;
 
-class _ActivityRow extends StatelessWidget {
-  final _ActivityItem item;
-  final bool isLast;
+  const _ActivityTile({required this.item, required this.timeAgo});
 
-  const _ActivityRow({required this.item, required this.isLast});
+  static const _typeConfig = {
+    'product_added': (
+      icon: Icons.add_box_rounded,
+      color: Color(0xFF22C55E),
+      bg: Color(0xFFDCFCE7),
+      label: 'Added',
+    ),
+    'scan': (
+      icon: Icons.qr_code_scanner,
+      color: Color(0xFF4A7CFC),
+      bg: Color(0xFFEEF2FF),
+      label: 'Scanned',
+    ),
+    'dept_qr': (
+      icon: Icons.account_balance_rounded,
+      color: Color(0xFF0EA5E9),
+      bg: Color(0xFFE0F2FE),
+      label: 'Dept',
+    ),
+    'status_changed': (
+      icon: Icons.swap_horiz_rounded,
+      color: Color(0xFFF59E0B),
+      bg: Color(0xFFFFF8E6),
+      label: 'Updated',
+    ),
+    'moved': (
+      icon: Icons.drive_file_move_outlined,
+      color: Color(0xFF8B5CF6),
+      bg: Color(0xFFF5F3FF),
+      label: 'Moved',
+    ),
+  };
+
+  static const _statusLabels = {
+    'in_stock':       'In Stock',
+    'in_maintenance': 'Maintenance',
+    'critical_issue': 'Critical',
+    'retired':        'Retired',
+  };
+
+  String _contextLine(String type, String? actionDataRaw) {
+    if (actionDataRaw == null || actionDataRaw.isEmpty) return '';
+    try {
+      final d = jsonDecode(actionDataRaw) as Map<String, dynamic>;
+      if (type == 'moved') {
+        final from = d['from_room'] as String?;
+        final to   = d['to_room']   as String?;
+        if (from != null && to != null) return '$from → $to';
+        if (to != null) return '→ $to';
+      }
+      if (type == 'status_changed') {
+        final oldS = _statusLabels[d['old_status']] ?? d['old_status'] as String? ?? '';
+        final newS = _statusLabels[d['new_status']] ?? d['new_status'] as String? ?? '';
+        if (oldS.isNotEmpty && newS.isNotEmpty) return '$oldS → $newS';
+      }
+    } catch (_) {}
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: item.color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(item.icon, color: item.color, size: 18),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 40,
-                color: Theme.of(context).colorScheme.outline,
-                margin: const EdgeInsets.only(top: 8),
-              ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+    final type = item['type'] as String? ?? 'scan';
+    final cfg  = _typeConfig[type] ?? _typeConfig['scan']!;
+
+    final name         = item['name']            as String? ?? '—';
+    final sku          = item['sku']             as String? ?? '';
+    final categoryName = item['category_name']   as String? ?? '';
+    final deptCode     = item['department_code'] as String?;
+    final photoUrl     = item['photo_url']       as String?;
+    final userName     = item['user_name']       as String?;
+    final userRole     = item['user_role']       as String? ?? '';
+    final actionData   = item['action_data']     as String?;
+    final contextLine  = _contextLine(type, actionData);
+
+    final baseHost = ApiService.baseUrl.replaceAll('/api', '');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // ── Thumbnail / icon ─────────────────────────────────────────────
+          SizedBox(
+            width: 44, height: 44,
+            child: photoUrl != null && photoUrl.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      '$baseHost$photoUrl',
+                      width: 44, height: 44, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _iconBox(cfg.icon, cfg.color, cfg.bg),
+                    ),
+                  )
+                : _iconBox(cfg.icon, cfg.color, cfg.bg),
+          ),
+
+          const SizedBox(width: 12),
+
+          // ── Text ─────────────────────────────────────────────────────────
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.action,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.description,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (item.subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    item.subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.color
-                              ?.withValues(alpha: 0.6),
-                        ),
-                  ),
-                ],
+                // Product / item name
+                Text(name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1D2E))),
                 const SizedBox(height: 4),
-                Text(
-                  item.timestamp,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.color
-                            ?.withValues(alpha: 0.5),
-                      ),
-                ),
+
+                // Badges row
+                Row(children: [
+                  _Badge(label: cfg.label, color: cfg.color, bg: cfg.bg),
+                  if (deptCode != null) ...[
+                    const SizedBox(width: 5),
+                    _Badge(
+                      label: deptCode,
+                      color: const Color(0xFF0284C7),
+                      bg: const Color(0xFFE0F2FE),
+                    ),
+                  ],
+                  if (categoryName.isNotEmpty) ...[
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(categoryName,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 10, color: Color(0xFFB0B7C3))),
+                    ),
+                  ],
+                ]),
+
+                // Context line (move / status change)
+                if (contextLine.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(
+                      type == 'moved'
+                          ? Icons.arrow_forward_rounded
+                          : Icons.sync_alt_rounded,
+                      size: 11, color: cfg.color,
+                    ),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(contextLine,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: cfg.color,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                  ]),
+                ],
               ],
             ),
           ),
-        ),
-      ],
+
+          const SizedBox(width: 8),
+
+          // ── Right column: time + user avatar + trend ──────────────────────
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(timeAgo,
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFFB0B7C3),
+                      fontWeight: FontWeight.w400)),
+              const SizedBox(height: 6),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                if (userName != null) ...[
+                  Container(
+                    width: 18, height: 18,
+                    decoration: BoxDecoration(
+                      color: cfg.color.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : '?',
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: cfg.color),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Container(
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.trending_up_rounded,
+                      size: 14, color: Color(0xFF22C55E)),
+                ),
+              ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconBox(IconData icon, Color color, Color bg) {
+    return Container(
+      width: 44, height: 44,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      child: Icon(icon, color: color, size: 20),
+    );
+  }
+}
+
+// ─── Small badge chip ─────────────────────────────────────────────────────────
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color bg;
+
+  const _Badge({required this.label, required this.color, required this.bg});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w700, color: color)),
     );
   }
 }

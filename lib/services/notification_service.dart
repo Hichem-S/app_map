@@ -11,14 +11,37 @@ class NotificationService extends ChangeNotifier {
 
   final List<AppNotification> _notifications = [];
   StreamSubscription? _wsSub;
+  bool _initialized = false;
+  bool _muted = false;
 
   List<AppNotification> get all => List.unmodifiable(_notifications);
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get unreadCount => _muted ? 0 : _notifications.where((n) => !n.isRead).length;
+  bool get muted => _muted;
 
+  void setMuted(bool value) {
+    if (_muted == value) return;
+    _muted = value;
+    if (!_muted) loadFromApi(); // catch up on any notifications received while muted
+    notifyListeners();
+  }
+
+  // Idempotent — safe to call multiple times (e.g. widget rebuilds).
+  // Only wires up the WS subscription once per login session.
   Future<void> init() async {
-    _wsSub?.cancel();
+    if (_initialized) return;
+    _initialized = true;
     _wsSub = WsService.stream.listen(_handle, onError: (_) {});
     await loadFromApi();
+  }
+
+  // Call on logout to allow clean re-init on next login.
+  void reset() {
+    _initialized = false;
+    _muted = false;
+    _wsSub?.cancel();
+    _wsSub = null;
+    _notifications.clear();
+    notifyListeners();
   }
 
   Future<void> loadFromApi() async {
@@ -34,14 +57,17 @@ class NotificationService extends ChangeNotifier {
   }
 
   void _handle(dynamic event) {
+    if (_muted) return;
     try {
       final msg = jsonDecode(event as String) as Map<String, dynamic>;
       if (msg['type'] == 'product_moved') {
+        final mover = msg['movedByName'] as String?;
         addMoveNotification(
           serverId:    msg['notificationId'] as String?,
           productName: msg['productName']    as String?,
           fromRoom:    msg['fromRoom']        as String?,
           toRoom:      msg['toRoom']          as String?,
+          body:        mover != null ? 'By $mover' : null,
         );
       }
     } catch (_) {}
@@ -52,6 +78,7 @@ class NotificationService extends ChangeNotifier {
     String? productName,
     String? fromRoom,
     String? toRoom,
+    String? body,
   }) {
     if (serverId != null && _notifications.any((n) => n.serverId == serverId)) return;
 
@@ -60,7 +87,7 @@ class NotificationService extends ChangeNotifier {
       serverId:    serverId,
       type:        'product_moved',
       title:       'Déplacement effectué',
-      body:        '${productName ?? 'Équipement'} → ${toRoom ?? '—'}',
+      body:        body ?? '',
       productName: productName,
       fromRoom:    fromRoom,
       toRoom:      toRoom,

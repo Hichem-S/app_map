@@ -4,7 +4,7 @@ import '../models/tracker.dart';
 
 class TrackerService {
   // Default API endpoint - configured for user's PC
-  static String _baseUrl = 'http://192.168.100.140:6176';
+  static String _baseUrl = 'http://192.168.31.23:6176';
 
   static void setBaseUrl(String url) {
     _baseUrl = url;

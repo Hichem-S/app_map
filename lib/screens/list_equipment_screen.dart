@@ -120,15 +120,23 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Equipment List',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textH)),
-            Text('Tap status to change · Tap pin to place',
-                style: TextStyle(fontSize: 12, color: AppColors.textBody)),
-          ],
-        ),
+        title: Builder(builder: (ctx) {
+          final auth = ctx.watch<AuthProvider>();
+          final hints = [
+            if (auth.canChangeStatus) 'Tap status to change',
+            if (auth.canViewMaps) 'Tap pin to place',
+          ];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Equipment List',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textH)),
+              if (hints.isNotEmpty)
+                Text(hints.join(' · '),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
+            ],
+          );
+        }),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
@@ -240,7 +248,7 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
                             ),
                           )
                         : Builder(builder: (ctx) {
-                            final canPlace = ctx.watch<AuthProvider>().canWrite;
+                            final auth = ctx.watch<AuthProvider>();
                             return RefreshIndicator(
                               onRefresh: _load,
                               color: AppColors.primary,
@@ -249,7 +257,8 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
                                 itemCount: _filtered.length,
                                 itemBuilder: (ctx2, i) => _EquipmentRow(
                                   product: _filtered[i],
-                                  canPlace: canPlace,
+                                  canPlace: auth.canViewMaps,
+                                  canChangeStatus: auth.canChangeStatus,
                                   onStatusChanged:  (s) => _onStatusChanged(_filtered[i], s),
                                   onLocationChanged: (p) => _onLocationChanged(p),
                                 ),
@@ -268,12 +277,14 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
 class _EquipmentRow extends StatefulWidget {
   final Product product;
   final bool canPlace;
+  final bool canChangeStatus;
   final void Function(String newStatus) onStatusChanged;
   final void Function(Product updated) onLocationChanged;
 
   const _EquipmentRow({
     required this.product,
     required this.canPlace,
+    required this.canChangeStatus,
     required this.onStatusChanged,
     required this.onLocationChanged,
   });
@@ -431,9 +442,9 @@ class _EquipmentRowState extends State<_EquipmentRow> {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Status badge
+                // Status badge — tappable only for admin / magazinier
                 GestureDetector(
-                  onTap: _savingStatus ? null : _pickStatus,
+                  onTap: (widget.canChangeStatus && !_savingStatus) ? _pickStatus : null,
                   child: _savingStatus
                       ? const SizedBox(width: 22, height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
@@ -451,8 +462,10 @@ class _EquipmentRowState extends State<_EquipmentRow> {
                               const SizedBox(width: 3),
                               Text(_labels[p.status] ?? p.status,
                                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
-                              const SizedBox(width: 2),
-                              Icon(Icons.expand_more, size: 11, color: color),
+                              if (widget.canChangeStatus) ...[
+                                const SizedBox(width: 2),
+                                Icon(Icons.expand_more, size: 11, color: color),
+                              ],
                             ],
                           ),
                         ),

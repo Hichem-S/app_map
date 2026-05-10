@@ -30,22 +30,34 @@ Future<(XFile?, Uint8List?)> pickImageFromSource(bool isCamera) async {
     pickedName = file.name;
     final reader = html.FileReader()..readAsArrayBuffer(file);
     reader.onLoad.listen((_) {
-      completer.complete((reader.result as ByteBuffer).asUint8List());
+      final result = reader.result;
+      if (result is ByteBuffer) {
+        completer.complete(result.asUint8List());
+      } else if (result is Uint8List) {
+        completer.complete(result);
+      } else {
+        completer.complete(null);
+      }
     });
     reader.onError.listen((_) => completer.complete(null));
   });
 
   input.click();
 
-  final bytes = await completer.future;
+  // Timeout so the UI doesn't freeze if the user dismisses the file dialog
+  final bytes = await completer.future.timeout(
+    const Duration(minutes: 2),
+    onTimeout: () => null,
+  );
   input.remove();
 
   if (bytes == null) return (null, null);
 
-  final xfile = XFile.fromData(
-    bytes,
-    name: pickedName ?? 'photo.jpg',
-    mimeType: 'image/jpeg',
-  );
+  final name = pickedName ?? 'photo.jpg';
+  final ext = name.split('.').last.toLowerCase();
+  final mime = ext == 'png' ? 'image/png'
+      : ext == 'webp' ? 'image/webp'
+      : 'image/jpeg';
+  final xfile = XFile.fromData(bytes, name: name, mimeType: mime);
   return (xfile, bytes);
 }

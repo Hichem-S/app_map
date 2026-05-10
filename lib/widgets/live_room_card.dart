@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import '../models/room.dart';
+import '../models/product.dart';
 import '../services/api_service.dart';
+import '../screens/room_items_screen.dart';
+import '../models/department.dart';
 
-class LiveRoomCard extends StatelessWidget {
+class LiveRoomCard extends StatefulWidget {
   final Room room;
   final Color deptColor;
-  /// Called with the updated Room after a successful edit save.
+  final Department? department;
   final ValueChanged<Room>? onRoomUpdated;
-  /// Called when the card body is tapped (navigate to room items).
   final VoidCallback? onTap;
 
   const LiveRoomCard({
     super.key,
     required this.room,
     required this.deptColor,
+    this.department,
     this.onRoomUpdated,
     this.onTap,
   });
@@ -120,19 +123,63 @@ class LiveRoomCard extends StatelessWidget {
     );
   }
 
+  @override
+  State<LiveRoomCard> createState() => _LiveRoomCardState();
+}
+
+class _LiveRoomCardState extends State<LiveRoomCard> {
+  bool _expanded = false;
+  bool _loadingItems = false;
+  List<Product> _items = [];
+
+  Future<void> _toggleExpand() async {
+    if (_expanded) {
+      setState(() => _expanded = false);
+      return;
+    }
+    setState(() { _expanded = true; _loadingItems = true; });
+    try {
+      final res = await ApiService.getProducts(roomId: widget.room.id, limit: 100);
+      final rows = (res['data'] as List<dynamic>? ?? [])
+          .map((r) => Product.fromJson(r as Map<String, dynamic>))
+          .toList();
+      if (mounted) setState(() { _items = rows; _loadingItems = false; });
+    } catch (_) {
+      if (mounted) setState(() { _loadingItems = false; });
+    }
+  }
+
+  void _openFullScreen(BuildContext context) {
+    final dept = widget.department ??
+        Department(
+          id: '',
+          code: '?',
+          name: widget.room.name,
+          color: widget.deptColor.value.toRadixString(16).padLeft(8, '0').substring(2),
+        );
+    final target = widget.onTap;
+    if (target != null) {
+      target();
+    } else {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => RoomItemsScreen(room: widget.room, department: dept),
+      ));
+    }
+  }
+
   // ─── Edit room sheet ────────────────────────────────────────────────────────
 
   void _showEditSheet(BuildContext context) {
-    final nameCtrl     = TextEditingController(text: room.name);
-    final codeCtrl     = TextEditingController(text: room.roomCode ?? '');
-    final blocCtrl     = TextEditingController(text: room.bloc ?? '');
-    final floorCtrl    = TextEditingController(text: room.floor ?? '');
+    final nameCtrl     = TextEditingController(text: widget.room.name);
+    final codeCtrl     = TextEditingController(text: widget.room.roomCode ?? '');
+    final blocCtrl     = TextEditingController(text: widget.room.bloc ?? '');
+    final floorCtrl    = TextEditingController(text: widget.room.floor ?? '');
     final capacityCtrl = TextEditingController(
-        text: room.capacity != null ? '${room.capacity}' : '');
-    String selectedType = room.type;
+        text: widget.room.capacity != null ? '${widget.room.capacity}' : '');
+    String selectedType = widget.room.type;
     bool saving = false;
 
-    final types = const [
+    const types = [
       ('classroom',   'Salle de cours',  Icons.school_outlined),
       ('laboratory',  'Laboratoire',     Icons.biotech_outlined),
       ('office',      'Bureau',          Icons.work_outline),
@@ -158,7 +205,6 @@ class LiveRoomCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Handle
                   Center(
                     child: Container(
                       width: 40, height: 4,
@@ -168,16 +214,14 @@ class LiveRoomCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(2)),
                     ),
                   ),
-
-                  // Title
                   Row(
                     children: [
                       Container(
                         width: 36, height: 36,
                         decoration: BoxDecoration(
-                            color: deptColor.withOpacity(0.12),
+                            color: widget.deptColor.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(10)),
-                        child: Icon(Icons.edit_outlined, color: deptColor, size: 18),
+                        child: Icon(Icons.edit_outlined, color: widget.deptColor, size: 18),
                       ),
                       const SizedBox(width: 10),
                       const Text('Modifier la salle',
@@ -185,12 +229,8 @@ class LiveRoomCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Room name
-                  _field('Nom de la salle', nameCtrl, deptColor),
+                  _field('Nom de la salle', nameCtrl, widget.deptColor),
                   const SizedBox(height: 12),
-
-                  // Type selector
                   const Text('Type', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -202,10 +242,9 @@ class LiveRoomCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: selected ? deptColor : Colors.grey[100],
+                            color: selected ? widget.deptColor : Colors.grey[100],
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: selected ? deptColor : Colors.grey[200]!),
+                            border: Border.all(color: selected ? widget.deptColor : Colors.grey[200]!),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -225,45 +264,38 @@ class LiveRoomCard extends StatelessWidget {
                     }).toList(),
                   ),
                   const SizedBox(height: 12),
-
-                  // Code + Bloc side by side
                   Row(
                     children: [
-                      Expanded(child: _field('Code salle (ex: I101)', codeCtrl, deptColor)),
+                      Expanded(child: _field('Code salle (ex: I101)', codeCtrl, widget.deptColor)),
                       const SizedBox(width: 10),
-                      Expanded(child: _field('Bloc (ex: Bloc A)', blocCtrl, deptColor)),
+                      Expanded(child: _field('Bloc (ex: Bloc A)', blocCtrl, widget.deptColor)),
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Floor + Capacity side by side
                   Row(
                     children: [
-                      Expanded(child: _field('Étage (ex: Étage 1)', floorCtrl, deptColor)),
+                      Expanded(child: _field('Étage (ex: Étage 1)', floorCtrl, widget.deptColor)),
                       const SizedBox(width: 10),
-                      Expanded(child: _field('Capacité (pers.)', capacityCtrl, deptColor,
+                      Expanded(child: _field('Capacité (pers.)', capacityCtrl, widget.deptColor,
                           keyboardType: TextInputType.number)),
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Save button
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: deptColor,
+                        backgroundColor: widget.deptColor,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: saving ? null : () async {
                         setSheet(() => saving = true);
                         try {
                           final cap = int.tryParse(capacityCtrl.text.trim());
                           final res = await ApiService.updateRoom(
-                            room.id,
+                            widget.room.id,
                             name:     nameCtrl.text.trim().isEmpty ? null : nameCtrl.text.trim(),
                             type:     selectedType,
                             roomCode: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
@@ -273,8 +305,8 @@ class LiveRoomCard extends StatelessWidget {
                           );
                           if (ctx.mounted) {
                             Navigator.pop(ctx);
-                            if (res['success'] == true && onRoomUpdated != null) {
-                              final updated = room.copyWith(
+                            if (res['success'] == true && widget.onRoomUpdated != null) {
+                              final updated = widget.room.copyWith(
                                 name:     nameCtrl.text.trim().isEmpty ? null : nameCtrl.text.trim(),
                                 type:     selectedType,
                                 roomCode: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
@@ -286,7 +318,7 @@ class LiveRoomCard extends StatelessWidget {
                                 clearFloor:    floorCtrl.text.trim().isEmpty,
                                 clearCapacity: cap == null,
                               );
-                              onRoomUpdated!(updated);
+                              widget.onRoomUpdated!(updated);
                             }
                           }
                         } catch (e) {
@@ -329,8 +361,7 @@ class LiveRoomCard extends StatelessWidget {
           keyboardType: keyboardType,
           style: const TextStyle(fontSize: 14),
           decoration: InputDecoration(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             filled: true,
             fillColor: Colors.grey[50],
             border: OutlineInputBorder(
@@ -352,8 +383,10 @@ class LiveRoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = _typeLabels[room.type] ?? room.type;
-    final typeIcon  = _typeIcons[room.type]  ?? Icons.meeting_room_outlined;
+    final room      = widget.room;
+    final color     = widget.deptColor;
+    final typeLabel = LiveRoomCard._typeLabels[room.type] ?? room.type;
+    final typeIcon  = LiveRoomCard._typeIcons[room.type]  ?? Icons.meeting_room_outlined;
     final subtitle  = [
       if (room.roomCode != null && room.roomCode!.isNotEmpty) room.roomCode!,
       if (room.bloc != null && room.bloc!.isNotEmpty) room.bloc!,
@@ -371,190 +404,346 @@ class LiveRoomCard extends StatelessWidget {
               offset: const Offset(0, 2))
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // QR panel — tap to view dialog
-            GestureDetector(
-              onTap: () => showQrDialog(context, room, deptColor),
-              child: Container(
-                width: 90,
-                decoration: BoxDecoration(
-                  color: deptColor.withOpacity(0.06),
-                  borderRadius:
-                      const BorderRadius.horizontal(left: Radius.circular(18)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        ApiService.roomQrUrl(room.id),
-                        width: 62, height: 62, fit: BoxFit.cover,
-                        loadingBuilder: (_, child, p) => p == null
-                            ? child
-                            : SizedBox(
-                                width: 62, height: 62,
-                                child: Center(
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 1.5, color: deptColor))),
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 62, height: 62,
-                          decoration: BoxDecoration(
-                              color: deptColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Icon(Icons.qr_code_2, color: deptColor, size: 30),
-                        ),
+      child: Column(
+        children: [
+          // ── Main row ──────────────────────────────────────────────────────
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // QR panel
+                GestureDetector(
+                  onTap: () => LiveRoomCard.showQrDialog(context, room, color),
+                  child: Container(
+                    width: 90,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.06),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        bottomLeft: Radius.circular(_expanded ? 0 : 18),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.zoom_in_rounded, size: 12, color: deptColor),
-                        const SizedBox(width: 3),
-                        Text('QR',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: deptColor,
-                                fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            ApiService.roomQrUrl(room.id),
+                            width: 62, height: 62, fit: BoxFit.cover,
+                            loadingBuilder: (_, child, p) => p == null
+                                ? child
+                                : SizedBox(
+                                    width: 62, height: 62,
+                                    child: Center(child: CircularProgressIndicator(strokeWidth: 1.5, color: color))),
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 62, height: 62,
+                              decoration: BoxDecoration(
+                                  color: color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8)),
+                              child: Icon(Icons.qr_code_2, color: color, size: 30),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.zoom_in_rounded, size: 12, color: color),
+                            const SizedBox(width: 3),
+                            Text('QR', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                  ],
+                  ),
                 ),
-              ),
-            ),
 
-            // Details panel — tap to view room items
-            Expanded(
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Type badge
-                      Row(children: [
-                        Icon(typeIcon, size: 12, color: Colors.black45),
-                        const SizedBox(width: 4),
-                        Text(typeLabel,
-                            style: const TextStyle(fontSize: 12, color: Colors.black45)),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Room name
-                      Row(
+                // Details panel
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _openFullScreen(context),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(room.name,
-                                style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1A2340))),
-                          ),
-                          if (onTap != null)
-                            Icon(Icons.chevron_right_rounded,
-                                size: 18, color: Colors.black26),
+                          Row(children: [
+                            Icon(typeIcon, size: 12, color: Colors.black45),
+                            const SizedBox(width: 4),
+                            Text(typeLabel, style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                          ]),
+                          const SizedBox(height: 4),
+                          Row(children: [
+                            Expanded(
+                              child: Text(room.name,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A2340))),
+                            ),
+                            Icon(Icons.chevron_right_rounded, size: 18, color: Colors.black26),
+                          ]),
+                          if (subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                          ] else ...[
+                            const SizedBox(height: 2),
+                            Text('Appuyer ✏️ pour renseigner les détails',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[400], fontStyle: FontStyle.italic)),
+                          ],
+                          const SizedBox(height: 8),
+                          if (room.productCount > 0)
+                            Row(children: [
+                              Text('${room.productCount} équip.',
+                                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                              if (room.inStock > 0) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF22C55E)),
+                                const SizedBox(width: 2),
+                                Text('${room.inStock}', style: const TextStyle(fontSize: 12, color: Color(0xFF22C55E), fontWeight: FontWeight.w600)),
+                              ],
+                              if (room.inMaintenance > 0) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFF59E0B)),
+                                const SizedBox(width: 2),
+                                Text('${room.inMaintenance}', style: const TextStyle(fontSize: 12, color: Color(0xFFF59E0B), fontWeight: FontWeight.w600)),
+                              ],
+                              if (room.criticalIssue > 0) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.error_outline, size: 14, color: Color(0xFFEF4444)),
+                                const SizedBox(width: 2),
+                                Text('${room.criticalIssue}', style: const TextStyle(fontSize: 12, color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
+                              ],
+                            ])
+                          else
+                            Text('Vide', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                          if (room.capacity != null) ...[
+                            const SizedBox(height: 4),
+                            Row(children: [
+                              const Icon(Icons.people_outline_rounded, size: 13, color: Colors.black38),
+                              const SizedBox(width: 4),
+                              Text('Capacité: ${room.capacity} pers.', style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                            ]),
+                          ],
                         ],
                       ),
-                      // Subtitle: code · bloc · floor
-                      if (subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(subtitle,
-                            style: const TextStyle(fontSize: 12, color: Colors.black45)),
-                      ] else ...[
-                        const SizedBox(height: 2),
-                        Text('Appuyer ✏️ pour renseigner les détails',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[400],
-                                fontStyle: FontStyle.italic)),
-                      ],
-                      const SizedBox(height: 8),
-                      // Equipment counts
+                    ),
+                  ),
+                ),
+
+                // Right buttons column
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Edit
+                      GestureDetector(
+                        onTap: () => _showEditSheet(context),
+                        child: Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.edit_outlined, size: 16, color: color),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Expand toggle (only if has items)
                       if (room.productCount > 0)
-                        Row(children: [
-                          Text('${room.productCount} équip.',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54)),
-                          if (room.inStock > 0) ...[
-                            const SizedBox(width: 6),
-                            const Icon(Icons.check_circle_outline,
-                                size: 14, color: Color(0xFF22C55E)),
-                            const SizedBox(width: 2),
-                            Text('${room.inStock}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF22C55E),
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                          if (room.inMaintenance > 0) ...[
-                            const SizedBox(width: 6),
-                            const Icon(Icons.warning_amber_rounded,
-                                size: 14, color: Color(0xFFF59E0B)),
-                            const SizedBox(width: 2),
-                            Text('${room.inMaintenance}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFFF59E0B),
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                          if (room.criticalIssue > 0) ...[
-                            const SizedBox(width: 6),
-                            const Icon(Icons.error_outline,
-                                size: 14, color: Color(0xFFEF4444)),
-                            const SizedBox(width: 2),
-                            Text('${room.criticalIssue}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFFEF4444),
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                        ])
-                      else
-                        Text('Vide',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                      // Capacity
-                      if (room.capacity != null) ...[
-                        const SizedBox(height: 4),
-                        Row(children: [
-                          const Icon(Icons.people_outline_rounded,
-                              size: 13, color: Colors.black38),
-                          const SizedBox(width: 4),
-                          Text('Capacité: ${room.capacity} pers.',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black45)),
-                        ]),
-                      ],
+                        GestureDetector(
+                          onTap: _toggleExpand,
+                          child: Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              color: _expanded ? color.withOpacity(0.15) : color.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: AnimatedRotation(
+                              turns: _expanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: color),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
+          ),
 
-            // Edit button
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: GestureDetector(
-                  onTap: () => _showEditSheet(context),
-                  child: Container(
-                    width: 32, height: 32,
-                    decoration: BoxDecoration(
-                      color: deptColor.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.edit_outlined, size: 16, color: deptColor),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          // ── Expanded items list ────────────────────────────────────────────
+          if (_expanded) _buildItemsList(color),
+        ],
       ),
     );
   }
+
+  Widget _buildItemsList(Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.03),
+        border: Border(top: BorderSide(color: color.withOpacity(0.12))),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_loadingItems)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text('Aucun équipement trouvé',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+              ),
+            )
+          else ...[
+            ..._items.take(6).map((item) => _ItemRow(item: item, color: color)),
+            if (_items.length > 6) ...[
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => _openFullScreen(context),
+                child: Center(
+                  child: Text(
+                    'Voir les ${_items.length} équipements →',
+                    style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () => _openFullScreen(context),
+                child: Center(
+                  child: Text(
+                    'Voir le détail →',
+                    style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Single item row inside expanded section ──────────────────────────────────
+
+class _ItemRow extends StatelessWidget {
+  final Product item;
+  final Color color;
+  const _ItemRow({required this.item, required this.color});
+
+  static const _statusColors = {
+    'in_stock':       Color(0xFF10B981),
+    'in_maintenance': Color(0xFFF59E0B),
+    'critical_issue': Color(0xFFEF4444),
+    'retired':        Color(0xFF9CA3AF),
+  };
+  static const _statusBg = {
+    'in_stock':       Color(0xFFE6F9F2),
+    'in_maintenance': Color(0xFFFFF8E6),
+    'critical_issue': Color(0xFFFFEEEE),
+    'retired':        Color(0xFFF3F4F6),
+  };
+  static const _statusLabels = {
+    'in_stock':       'En stock',
+    'in_maintenance': 'Maintenance',
+    'critical_issue': 'Critique',
+    'retired':        'Retraité',
+  };
+  static const _statusIcons = {
+    'in_stock':       Icons.check_circle_outline,
+    'in_maintenance': Icons.build_outlined,
+    'critical_issue': Icons.warning_amber_outlined,
+    'retired':        Icons.archive_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final sColor = _statusColors[item.status] ?? const Color(0xFF6B7280);
+    final sBg    = _statusBg[item.status]     ?? const Color(0xFFF3F4F6);
+    final sIcon  = _statusIcons[item.status]  ?? Icons.help_outline;
+    final sLabel = _statusLabels[item.status] ?? item.status;
+    final baseHost = ApiService.baseUrl.replaceAll('/api', '');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          // Thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: item.photoUrl != null
+                ? Image.network(
+                    '$baseHost${item.photoUrl}',
+                    width: 36, height: 36, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _thumb(),
+                  )
+                : _thumb(),
+          ),
+          const SizedBox(width: 10),
+          // Name + SKU
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A2340))),
+                Text(item.sku,
+                    style: const TextStyle(fontSize: 11, color: Colors.black38)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Status badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            decoration: BoxDecoration(
+              color: sBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: sColor.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(sIcon, size: 10, color: sColor),
+                const SizedBox(width: 3),
+                Text(sLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: sColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thumb() => Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+            color: const Color(0xFFEEF2FF),
+            borderRadius: BorderRadius.circular(7)),
+        child: const Icon(Icons.devices_other, color: Color(0xFF818CF8), size: 18),
+      );
 }

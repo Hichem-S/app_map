@@ -12,13 +12,21 @@ class AuthProvider extends ChangeNotifier {
   bool get isMagazinier => role == 'magazinier';
   bool get isTechnicien => role == 'technicien' || role == 'user';
 
-  /// Can add products (all roles)
-  bool get canAddProduct => true;
+  /// Only magazinier physically adds stock
+  bool get canAddProduct    => isMagazinier;
 
-  /// Can place/unplace equipment on map, view maps & departments
-  bool get canViewMaps => isAdmin || isMagazinier;
+  /// Admin + magazinier can edit, delete, change status
+  bool get canEditProduct   => isAdmin || isMagazinier;
+  bool get canDeleteProduct => isAdmin || isMagazinier;
+  bool get canChangeStatus  => isAdmin || isMagazinier;
 
-  /// Can access user management
+  /// Admin + technicien see 2D/3D maps and can place equipment
+  bool get canViewMaps => isAdmin || isTechnicien;
+
+  /// Reports tab visible to admin + technicien; hidden for magazinier
+  bool get canViewReports => isAdmin || isTechnicien;
+
+  /// User management — admin only
   bool get canManageUsers => isAdmin;
 
   String get displayRole {

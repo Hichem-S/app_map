@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:provider/provider.dart';
+import 'utils/webview_init.dart';
 import 'providers/theme_provider.dart';
 import 'providers/auth_provider.dart';
 import 'widgets/role_guard.dart';
@@ -23,9 +23,12 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/reset_password_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/admin_users_screen.dart';
+import 'screens/move_log_screen.dart';
+import 'screens/tracker_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  initWebViewPlatform();
   runApp(
     MultiProvider(
       providers: [
@@ -54,13 +57,27 @@ class MyApp extends StatelessWidget {
             '/signup': (context) => const SignupScreen(),
             '/home': (context) => const HomeScreen(),
             '/qrscanner': (context) => const QRScannerScreen(),
-            '/addproduct': (context) => const add_product.AddNewProductScreen(),
-            '/equipmentmap': (context) => const EquipmentMapScreen(),
-            '/3dmap': (context) => const Product3DMapScreen(),
+            '/addproduct': (context) => const RoleGuard(
+                  roles: ['magazinier'],
+                  child: add_product.AddNewProductScreen(),
+                ),
+            '/equipmentmap': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: EquipmentMapScreen(),
+                ),
+            '/3dmap': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: Product3DMapScreen(),
+                ),
             '/profile': (context) => const ProfileScreen(),
-            '/vueinstitut': (context) => const vue_institut.IsetMahdiaScreen(),
-            '/scan_qr_hiearchique': (context) =>
-                const scan_qr_hiearchique.ScannerHierarchique(),
+            '/vueinstitut': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: vue_institut.IsetMahdiaScreen(),
+                ),
+            '/scan_qr_hiearchique': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: scan_qr_hiearchique.ScannerHierarchique(),
+                ),
             '/departement_gi': (context) => const dept_gi.DepartementGIScreen(),
             '/departement_ge': (context) => const dept_ge.DepartementGEScreen(),
             '/departement_tc': (context) => const dept_tc.TCDepartmentScreen(),
@@ -71,6 +88,14 @@ class MyApp extends StatelessWidget {
             '/admin/users': (context) => const RoleGuard(
                   roles: ['admin'],
                   child: AdminUsersScreen(),
+                ),
+            '/movelog': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: MoveLogScreen(),
+                ),
+            '/tracker': (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: TrackerScreen(),
                 ),
             '/forgot-password': (context) => const ForgotPasswordScreen(),
             '/reset-password':  (context) => const ResetPasswordScreen(),
