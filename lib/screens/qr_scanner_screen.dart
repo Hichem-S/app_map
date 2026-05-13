@@ -27,7 +27,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   Timer? _debounce;
   final _manualController = TextEditingController();
   final _manualFocus = FocusNode();
-  final MobileScannerController _cameraController = MobileScannerController();
+  final MobileScannerController _cameraController = MobileScannerController(
+    formats: const [BarcodeFormat.all],
+    detectionSpeed: DetectionSpeed.normal,
+  );
   final List<Map<String, String>> _recentScans = [];
 
   @override
@@ -155,39 +158,45 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         return;
       }
 
-      // ── Product QR ──────────────────────────────────────────────────────────
-      String? productId;
-      final uri = Uri.tryParse(trimmed);
-      if (uri != null && uri.queryParameters.containsKey('id')) {
-        productId = uri.queryParameters['id'];
-      } else {
-        productId = trimmed;
-      }
-
-      if (productId == null || productId.isEmpty) {
-        _snack('Invalid QR code');
-        return;
-      }
-
+      // ── Product QR (UUID) or physical barcode ───────────────────────────────
       final uuidRegex = RegExp(
         r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
         caseSensitive: false,
       );
-      if (!uuidRegex.hasMatch(productId)) {
-        _snack('QR code is not a valid product code');
+
+      // Try UUID first (product QR code)
+      String? productId;
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && uri.queryParameters.containsKey('id')) {
+        productId = uri.queryParameters['id'];
+      } else if (uuidRegex.hasMatch(trimmed)) {
+        productId = trimmed;
+      }
+
+      if (productId != null) {
+        final data = await ApiService.getProductByQR(productId);
+        if (!mounted) return;
+        if (data['success'] == true) {
+          final product = Product.fromJson(data['data'] as Map<String, dynamic>);
+          _addRecentScan(product);
+          await ApiService.addScanHistory(product.id);
+          await _showProductDialog(product);
+        } else {
+          _snack(data['message'] ?? 'Product not found');
+        }
         return;
       }
 
-      final data = await ApiService.getProductByQR(productId);
+      // Not a UUID — try as a physical barcode
+      final barcodeRes = await ApiService.checkBarcode(trimmed);
       if (!mounted) return;
-
-      if (data['success'] == true) {
-        final product = Product.fromJson(data['data'] as Map<String, dynamic>);
+      if (barcodeRes['exists'] == true && barcodeRes['data'] != null) {
+        final product = Product.fromJson(barcodeRes['data'] as Map<String, dynamic>);
         _addRecentScan(product);
         await ApiService.addScanHistory(product.id);
         await _showProductDialog(product);
       } else {
-        _snack(data['message'] ?? 'Product not found');
+        _snack('No product registered for this barcode');
       }
     } catch (e) {
       if (!mounted) return;
@@ -390,9 +399,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               MobileScanner(
                 controller: _cameraController,
                 onDetect: (capture) {
-                  if (_scanned || _isSearching) return;
-                  final code = capture.barcodes.first.rawValue;
-                  if (code != null) _onQRDetected(code);
+                  if (_scanned || _isSearching || capture.barcodes.isEmpty) return;
+                  final b = capture.barcodes.first;
+                  final code = b.rawValue ?? b.displayValue;
+                  if (code != null && code.isNotEmpty) _onQRDetected(code);
                 },
               ),
               // Overlay frame
@@ -456,7 +466,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         ] else ...[
                           const Icon(Icons.sync, color: Colors.white, size: 16),
                           const SizedBox(width: 6),
-                          const Text('Scanning for QR codes...',
+                          const Text('Scanning QR codes & barcodes...',
                               style: TextStyle(color: Colors.white, fontSize: 13)),
                         ],
                       ],

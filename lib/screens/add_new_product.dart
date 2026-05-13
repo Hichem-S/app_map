@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import '../utils/image_picker_helper.dart';
 
@@ -212,6 +213,22 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
       if (val.isNotEmpty) specs[f.key] = val;
     }
     return specs;
+  }
+
+  // ─── Barcode scan picker ─────────────────────────────────────────────────────
+
+  Future<void> _scanBarcodeForField() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.black,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => const _BarcodeScanSheet(),
+    );
+    if (result != null && result.isNotEmpty && mounted) {
+      _barcodeController.text = result;
+    }
   }
 
   // ─── Barcode lookup ──────────────────────────────────────────────────────────
@@ -808,10 +825,27 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
 
                   // Barcode
                   _buildLabel('Barcode'),
-                  _buildTextField(
-                      controller: _barcodeController,
-                      hint: 'Auto-assigned from type & specs if empty',
-                      prefixIcon: Icons.barcode_reader),
+                  Row(children: [
+                    Expanded(
+                      child: _buildTextField(
+                          controller: _barcodeController,
+                          hint: 'Auto-assigned if empty',
+                          prefixIcon: Icons.barcode_reader),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _scanBarcodeForField,
+                      child: Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4F46E5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.qr_code_scanner,
+                            color: Colors.white, size: 22),
+                      ),
+                    ),
+                  ]),
                   _buildBarcodeBanner(),
                   const SizedBox(height: 16),
 
@@ -1147,6 +1181,81 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
         side: const BorderSide(color: Color(0xFFDDDDEE)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+}
+
+// ─── Barcode scan bottom sheet ────────────────────────────────────────────────
+
+class _BarcodeScanSheet extends StatefulWidget {
+  const _BarcodeScanSheet();
+  @override
+  State<_BarcodeScanSheet> createState() => _BarcodeScanSheetState();
+}
+
+class _BarcodeScanSheetState extends State<_BarcodeScanSheet> {
+  final _ctrl = MobileScannerController(
+    formats: const [BarcodeFormat.all],
+    detectionSpeed: DetectionSpeed.normal,
+  );
+  bool _done = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.55,
+      child: Column(children: [
+        const SizedBox(height: 12),
+        Container(
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text('Scan Barcode',
+            style: TextStyle(color: Colors.white, fontSize: 16,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Point camera at the barcode on the item',
+            style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+            child: Stack(children: [
+              MobileScanner(
+                controller: _ctrl,
+                onDetect: (capture) {
+                  if (_done || capture.barcodes.isEmpty) return;
+                  final b = capture.barcodes.first;
+                  final val = b.rawValue ?? b.displayValue;
+                  if (val != null && val.isNotEmpty) {
+                    _done = true;
+                    Navigator.pop(context, val);
+                  }
+                },
+              ),
+              Center(
+                child: Container(
+                  width: 260, height: 100,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFF4F46E5), width: 2.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

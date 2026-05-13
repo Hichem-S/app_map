@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/download_helper.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.100.140:3000/api';
+  static const String baseUrl = 'http://192.168.31.23:3000/api';
 
   static final _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
