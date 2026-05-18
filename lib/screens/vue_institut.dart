@@ -2,16 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../models/department.dart';
+import '../utils/app_colors.dart';
 import '../utils/download_helper.dart';
 import 'dept_rooms_screen.dart';
-
-// ── Design tokens matching the rest of the app ────────────────────────────────
-const _accent  = Color(0xFF4A7CFC);
-const _accent2 = Color(0xFF6B5BFD);
-const _bg      = Color(0xFFF5F6FA);
-const _dark    = Color(0xFF1A1D2E);
-const _muted   = Color(0xFFB0B7C3);
-const _white   = Colors.white;
 
 class IsetMahdiaScreen extends StatefulWidget {
   const IsetMahdiaScreen({Key? key}) : super(key: key);
@@ -55,12 +48,12 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.bgPage,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _accent))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : RefreshIndicator(
               onRefresh: _load,
-              color: _accent,
+              color: AppColors.primary,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics()),
@@ -157,7 +150,7 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('ISET Mahdia QR Code',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _dark)),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textH)),
         content: SizedBox(
           width: 240,
           height: 240,
@@ -165,7 +158,7 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
             url,
             fit: BoxFit.contain,
             loadingBuilder: (_, child, p) =>
-                p == null ? child : const Center(child: CircularProgressIndicator(color: _accent)),
+                p == null ? child : const Center(child: CircularProgressIndicator(color: AppColors.primary)),
             errorBuilder: (_, __, ___) =>
                 const Center(child: Icon(Icons.error_outline, color: Color(0xFFEF4444))),
           ),
@@ -173,12 +166,12 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
         actions: [
           TextButton.icon(
             onPressed: () => _downloadQr(url, 'iset_qr.png'),
-            icon: const Icon(Icons.download_rounded, size: 16, color: _accent),
-            label: const Text('Download', style: TextStyle(color: _accent)),
+            icon: const Icon(Icons.download_rounded, size: 16, color: AppColors.primary),
+            label: const Text('Download', style: TextStyle(color: AppColors.primary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: _muted)),
+            child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
           ),
         ],
       ),
@@ -200,26 +193,26 @@ class _SectionHeader extends StatelessWidget {
       Container(
         width: 32, height: 32,
         decoration: BoxDecoration(
-          color: _accent.withOpacity(0.1),
+          color: AppColors.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(9),
         ),
-        child: Icon(icon, color: _accent, size: 17),
+        child: Icon(icon, color: AppColors.primary, size: 17),
       ),
       const SizedBox(width: 10),
       Text(title,
           style: const TextStyle(
-              fontSize: 17, fontWeight: FontWeight.w700, color: _dark)),
+              fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textH)),
       if (count != null) ...[
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: _accent.withOpacity(0.1),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text('$count',
               style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: _accent)),
+                  fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
         ),
       ],
     ]);
@@ -247,13 +240,9 @@ class _HeroHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_accent, _accent2],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppColors.gradHeader,
         boxShadow: [
-          BoxShadow(color: Color(0x404A7CFC), blurRadius: 24, offset: Offset(0, 8)),
+          BoxShadow(color: Color(0x404F46E5), blurRadius: 24, offset: Offset(0, 8)),
         ],
       ),
       child: SafeArea(
@@ -270,10 +259,10 @@ class _HeroHeader extends StatelessWidget {
                     child: Container(
                       width: 38, height: 38,
                       decoration: BoxDecoration(
-                        color: _white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.arrow_back, color: _white, size: 20),
+                      child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
                     ),
                   ),
                   const Spacer(),
@@ -282,16 +271,16 @@ class _HeroHeader extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: _white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _white.withOpacity(0.4)),
+                        border: Border.all(color: Colors.white.withOpacity(0.4)),
                       ),
                       child: const Row(children: [
-                        Icon(Icons.qr_code_2, color: _white, size: 18),
+                        Icon(Icons.qr_code_2, color: Colors.white, size: 18),
                         SizedBox(width: 6),
                         Text('ISET QR',
                             style: TextStyle(
-                                color: _white,
+                                color: Colors.white,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13)),
                       ]),
@@ -304,21 +293,21 @@ class _HeroHeader extends StatelessWidget {
             Container(
               width: 72, height: 72,
               decoration: BoxDecoration(
-                color: _white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _white.withOpacity(0.3), width: 1.5),
+                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
               ),
-              child: const Icon(Icons.apartment_rounded, color: _white, size: 36),
+              child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 36),
             ),
             const SizedBox(height: 12),
             const Text('ISET Mahdia',
                 style: TextStyle(
-                    color: _white, fontSize: 22, fontWeight: FontWeight.w800)),
+                    color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             Text('Higher Institute of Technological Studies',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    color: _white.withOpacity(0.75), fontSize: 12)),
+                    color: Colors.white.withOpacity(0.75), fontSize: 12)),
             const SizedBox(height: 20),
             // Stat chips
             Padding(
@@ -360,20 +349,20 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: _white.withOpacity(0.15),
+        color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Column(children: [
-        Icon(icon, color: _white.withOpacity(0.8), size: 17),
+        Icon(icon, color: Colors.white.withOpacity(0.8), size: 17),
         const SizedBox(height: 4),
         Text(value,
             style: TextStyle(
-                color: valueColor ?? _white,
+                color: valueColor ?? Colors.white,
                 fontWeight: FontWeight.w800,
                 fontSize: 15)),
         Text(label,
-            style: TextStyle(color: _white.withOpacity(0.7), fontSize: 10)),
+            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10)),
       ]),
     );
   }
@@ -388,27 +377,24 @@ class _ContactCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: _white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 10, offset: const Offset(0, 3))
-        ],
+        boxShadow: AppColors.shadowMd,
       ),
       child: Column(children: [
         Row(children: [
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              color: _accent.withOpacity(0.1),
+              color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: const Icon(Icons.location_on_outlined, size: 16, color: _accent),
+            child: const Icon(Icons.location_on_outlined, size: 16, color: AppColors.primary),
           ),
           const SizedBox(width: 10),
           const Expanded(
             child: Text('Route de Hiboun, BP 153 — Mahdia 5100, Tunisia',
-                style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                style: TextStyle(fontSize: 13, color: AppColors.textBody)),
           ),
         ]),
         const SizedBox(height: 10),
@@ -416,22 +402,22 @@ class _ContactCard extends StatelessWidget {
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withOpacity(0.1),
+              color: AppColors.accent.withOpacity(0.1),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: const Icon(Icons.phone_outlined, size: 16, color: Color(0xFF22C55E)),
+            child: const Icon(Icons.phone_outlined, size: 16, color: AppColors.accent),
           ),
           const SizedBox(width: 10),
           const Text('+216 73 675 100',
-              style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+              style: TextStyle(fontSize: 13, color: AppColors.textBody)),
           const Spacer(),
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withOpacity(0.1),
+              color: AppColors.primaryLight.withOpacity(0.15),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: const Icon(Icons.email_outlined, size: 16, color: Color(0xFFF59E0B)),
+            child: const Icon(Icons.email_outlined, size: 16, color: AppColors.primaryLight),
           ),
           const SizedBox(width: 10),
           const Flexible(
@@ -464,32 +450,32 @@ class _ParcSection extends StatelessWidget {
             count: _i('status_in_stock'),
             label: 'Operational',
             icon: Icons.check_circle_outline,
-            color: const Color(0xFF22C55E),
-            bg: const Color(0xFFDCFCE7),
+            color: AppColors.primary,
+            bg: const Color(0xFFEEF2FF),
           )),
           const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             count: _i('status_in_maintenance'),
             label: 'Maintenance',
             icon: Icons.build_outlined,
-            color: const Color(0xFFF59E0B),
-            bg: const Color(0xFFFFF8E6),
+            color: AppColors.accent,
+            bg: const Color(0xFFE0F2FE),
           )),
           const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             count: _i('status_critical_issue'),
             label: 'Critical',
             icon: Icons.warning_amber_outlined,
-            color: const Color(0xFFEF4444),
-            bg: const Color(0xFFFFEEEE),
+            color: const Color(0xFF6D28D9),
+            bg: const Color(0xFFEDE9FE),
           )),
           const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             count: _i('status_retired'),
             label: 'Retired',
             icon: Icons.archive_outlined,
-            color: const Color(0xFF9CA3AF),
-            bg: const Color(0xFFF3F4F6),
+            color: AppColors.textBody,
+            bg: AppColors.bgMuted,
           )),
         ]),
       ],
@@ -609,17 +595,14 @@ class _QrCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = dept.flutterColor;
+    const color = AppColors.primary;
     final qrUrl = ApiService.departmentQrUrl(dept.id);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 10, offset: const Offset(0, 3))
-        ],
+        boxShadow: AppColors.shadowMd,
       ),
       child: Column(children: [
         Row(
@@ -628,12 +611,12 @@ class _QrCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: color,
+                gradient: AppColors.gradPrimary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(dept.code,
                   style: const TextStyle(
-                      color: _white, fontWeight: FontWeight.w700, fontSize: 12)),
+                      color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
             GestureDetector(
               onTap: () => _download(context),
@@ -643,7 +626,7 @@ class _QrCard extends StatelessWidget {
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.download_rounded, size: 16, color: color),
+                child: const Icon(Icons.download_rounded, size: 16, color: color),
               ),
             ),
           ],
@@ -659,11 +642,11 @@ class _QrCard extends StatelessWidget {
                 fit: BoxFit.contain,
                 loadingBuilder: (_, child, p) => p == null
                     ? child
-                    : Center(
+                    : const Center(
                         child: CircularProgressIndicator(color: color, strokeWidth: 2)),
-                errorBuilder: (_, __, ___) => Center(
+                errorBuilder: (_, __, ___) => const Center(
                   child: Icon(Icons.qr_code_2,
-                      color: color.withOpacity(0.3), size: 48),
+                      color: Color(0x554F46E5), size: 48),
                 ),
               ),
             ),
@@ -672,9 +655,9 @@ class _QrCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(dept.code,
             style: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 13, color: _dark)),
+                fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textH)),
         Text(dept.name,
-            style: const TextStyle(fontSize: 10, color: _muted),
+            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis),
@@ -689,27 +672,27 @@ class _QrCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('${dept.code} — ${dept.name}',
             style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700, color: _dark)),
+                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textH)),
         content: SizedBox(
           width: 260, height: 260,
           child: Image.network(
             url,
             fit: BoxFit.contain,
             loadingBuilder: (_, child, p) =>
-                p == null ? child : Center(child: CircularProgressIndicator(color: color)),
+                p == null ? child : const Center(child: CircularProgressIndicator(color: AppColors.primary)),
             errorBuilder: (_, __, ___) =>
-                const Center(child: Icon(Icons.error_outline, color: Color(0xFFEF4444))),
+                const Center(child: Icon(Icons.error_outline, color: AppColors.primary)),
           ),
         ),
         actions: [
           TextButton.icon(
             onPressed: () => _download(context),
-            icon: Icon(Icons.download_rounded, size: 16, color: color),
-            label: Text('Download', style: TextStyle(color: color)),
+            icon: const Icon(Icons.download_rounded, size: 16, color: AppColors.primary),
+            label: const Text('Download', style: TextStyle(color: AppColors.primary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: _muted)),
+            child: const Text('Close', style: TextStyle(color: AppColors.textMuted)),
           ),
         ],
       ),
@@ -726,18 +709,13 @@ class _DepartmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = dept.flutterColor;
-    final colorBg = color.withOpacity(0.08);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: _white,
+          color: AppColors.bgCard,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.06),
-                blurRadius: 12, offset: const Offset(0, 4))
-          ],
+          boxShadow: AppColors.shadowMd,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -747,12 +725,8 @@ class _DepartmentCard extends StatelessWidget {
               // Colour banner
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color, color.withOpacity(0.75)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                decoration: const BoxDecoration(
+                  gradient: AppColors.gradHeader,
                 ),
                 child: Row(children: [
                   Expanded(
@@ -763,19 +737,19 @@ class _DepartmentCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: _white.withOpacity(0.25),
+                            color: Colors.white.withOpacity(0.25),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(dept.code,
                               style: const TextStyle(
-                                  color: _white,
+                                  color: Colors.white,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700)),
                         ),
                         const SizedBox(height: 6),
                         Text(dept.name,
                             style: const TextStyle(
-                                color: _white,
+                                color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800)),
                       ],
@@ -784,11 +758,11 @@ class _DepartmentCard extends StatelessWidget {
                   Container(
                     width: 44, height: 44,
                     decoration: BoxDecoration(
-                      color: _white.withOpacity(0.2),
+                      color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.business_outlined,
-                        color: _white, size: 22),
+                        color: Colors.white, size: 22),
                   ),
                 ]),
               ),
@@ -800,8 +774,8 @@ class _DepartmentCard extends StatelessWidget {
                     child: _StatBox(
                       value: '${dept.roomCount}',
                       label: 'Rooms',
-                      color: _accent,
-                      bg: _accent.withOpacity(0.07),
+                      color: AppColors.primary,
+                      bg: const Color(0xFFEEF2FF),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -809,38 +783,38 @@ class _DepartmentCard extends StatelessWidget {
                     child: _StatBox(
                       value: '${dept.productCount}',
                       label: 'Equipment',
-                      color: const Color(0xFF22C55E),
-                      bg: const Color(0xFF22C55E).withOpacity(0.07),
+                      color: AppColors.accent,
+                      bg: const Color(0xFFE0F2FE),
                     ),
                   ),
                 ]),
               ),
               // Footer CTA
               Container(
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   border: Border(
-                      top: BorderSide(color: color.withOpacity(0.12))),
-                  color: colorBg,
+                      top: BorderSide(color: Color(0xFFEEF2FF))),
+                  color: Color(0xFFF8FAFF),
                 ),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 12),
                 child: Row(children: [
-                  Icon(Icons.meeting_room_outlined, size: 15, color: color),
+                  const Icon(Icons.meeting_room_outlined, size: 15, color: AppColors.primary),
                   const SizedBox(width: 8),
-                  Text('View Rooms',
+                  const Text('View Rooms',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: color)),
+                          color: AppColors.primary)),
                   const Spacer(),
                   Container(
                     width: 24, height: 24,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(Icons.arrow_forward_rounded,
-                        size: 14, color: color),
+                    child: const Icon(Icons.arrow_forward_rounded,
+                        size: 14, color: AppColors.primary),
                   ),
                 ]),
               ),

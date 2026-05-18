@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_colors.dart';
 
 class OverviewStats extends StatefulWidget {
   const OverviewStats({Key? key}) : super(key: key);
@@ -37,7 +38,7 @@ class _OverviewStatsState extends State<OverviewStats> {
           padding: EdgeInsets.symmetric(vertical: 24),
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: Color(0xFF4A7CFC),
+            color: AppColors.primary,
           ),
         ),
       );
@@ -54,15 +55,15 @@ class _OverviewStatsState extends State<OverviewStats> {
               children: [
                 Container(
                   width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                  decoration: const BoxDecoration(
+                    color: AppColors.bgMuted,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.refresh_rounded, color: Color(0xFFB0B7C3), size: 24),
+                  child: const Icon(Icons.refresh_rounded, color: AppColors.textMuted, size: 24),
                 ),
                 const SizedBox(height: 10),
                 const Text('Tap to retry',
-                    style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 13)),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
               ],
             ),
           ),
@@ -95,9 +96,9 @@ class _OverviewStatsState extends State<OverviewStats> {
             label: 'Operational',
             value: inStk.toString(),
             icon: Icons.check_circle_outline,
-            iconColor: const Color(0xFF16A34A),
-            iconBg: const Color(0xFFDCFCE7),
-            accent: const Color(0xFF16A34A),
+            iconColor: AppColors.primary,
+            iconBg: const Color(0xFFEEF2FF),
+            accent: AppColors.primary,
             percent: total > 0 ? inStk / total : null,
           )),
         ]),
@@ -109,24 +110,24 @@ class _OverviewStatsState extends State<OverviewStats> {
             label: 'Maintenance',
             value: inMnt,
             icon: Icons.build_outlined,
-            color: const Color(0xFFF59E0B),
-            bg: const Color(0xFFFFF8E6),
+            color: AppColors.accent,
+            bg: const Color(0xFFE0F2FE),
           )),
           const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             label: 'Critical',
             value: crit,
             icon: Icons.warning_amber_outlined,
-            color: const Color(0xFFEF4444),
-            bg: const Color(0xFFFFEEEE),
+            color: const Color(0xFF6D28D9),
+            bg: const Color(0xFFEDE9FE),
           )),
           const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             label: 'Retired',
             value: retd,
             icon: Icons.archive_outlined,
-            color: const Color(0xFF9CA3AF),
-            bg: const Color(0xFFF3F4F6),
+            color: AppColors.textBody,
+            bg: AppColors.bgMuted,
           )),
         ]),
         const SizedBox(height: 10),
@@ -153,7 +154,7 @@ class _OverviewStatsState extends State<OverviewStats> {
                 ? '${(value / 1000).toStringAsFixed(1)}k'
                 : value.toStringAsFixed(0),
             icon: Icons.payments_outlined,
-            color: const Color(0xFFD97706),
+            color: const Color(0xFF4338CA),
           )),
         ]),
       ],
@@ -179,19 +180,9 @@ class _GradientCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4A7CFC), Color(0xFF6B5BFD)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppColors.gradPrimary,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4A7CFC).withOpacity(0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          )
-        ],
+        boxShadow: AppColors.shadowColored(AppColors.primary),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,9 +238,9 @@ class _BigCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: AppColors.shadowMd,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,7 +270,7 @@ class _BigCard extends StatelessWidget {
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: accent)),
           const SizedBox(height: 2),
           Text(label,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
               maxLines: 1, overflow: TextOverflow.ellipsis),
           if (percent != null) ...[
             const SizedBox(height: 10),
@@ -369,9 +360,9 @@ class _MiniCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: AppColors.shadowSm,
       ),
       child: Column(
         children: [
@@ -388,7 +379,7 @@ class _MiniCard extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
           const SizedBox(height: 2),
           Text(label,
-              style: const TextStyle(fontSize: 10, color: Color(0xFFB0B7C3), fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ],

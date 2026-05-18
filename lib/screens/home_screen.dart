@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/app_colors.dart';
 import '../widgets/overview_stats.dart';
 import '../widgets/recent_activity.dart';
 import '../services/ws_service.dart';
@@ -16,13 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  int _notifCount = 0;
-
-  static const _bg     = Color(0xFFF5F6FA);
-  static const _accent = Color(0xFF4A7CFC);
-  static const _white  = Colors.white;
-  static const _dark   = Color(0xFF1A1D2E);
-  static const _muted  = Color(0xFFB0B7C3);
+  int _notifCount    = 0;
 
   @override
   void initState() {
@@ -38,7 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
     await WsService.connect();
     await NotificationService.instance.init();
     NotificationService.instance.addListener(_onNotifChanged);
-    if (mounted) setState(() => _notifCount = NotificationService.instance.unreadCount);
+    if (mounted) {
+      setState(() => _notifCount = NotificationService.instance.unreadCount);
+    }
   }
 
   void _onNotifChanged() {
@@ -58,25 +55,32 @@ class _HomeScreenState extends State<HomeScreen> {
     final avatar   = auth.user?['avatar'] as String?;
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.bgPage,
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _buildHeader(userName, avatar)),
-            SliverToBoxAdapter(child: _buildSearchRow(auth)),
+            SliverToBoxAdapter(child: _buildHeroPanel(userName, avatar, auth)),
             SliverToBoxAdapter(child: _buildSection(
               title: 'Overview',
               trailing: GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/list_equipment'),
-                child: const Text('View All',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF22C55E))),
+                child: const Text(
+                  'View All',
+                  style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600,
+                    color: AppColors.success,
+                  ),
+                ),
               ),
               child: const OverviewStats(),
             )),
             SliverToBoxAdapter(child: _buildSection(
               title: 'Recent Activity',
-              trailing: const Icon(Icons.trending_up_rounded, color: Color(0xFF22C55E), size: 20),
+              trailing: const Icon(
+                Icons.trending_up_rounded,
+                color: AppColors.success, size: 20,
+              ),
               child: const RecentActivity(),
             )),
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -113,177 +117,244 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Header ──────────────────────────────────────────────────────────────────
+  // ── Gradient hero panel ──────────────────────────────────────────────────────
 
-  Widget _buildHeader(String userName, String? avatar) {
-    final baseHost = ApiService.baseUrl.replaceAll('/api', '');
+  Widget _buildHeroPanel(String userName, String? avatar, AuthProvider auth) {
+    final baseHost  = ApiService.baseUrl.replaceAll('/api', '');
     final firstName = userName.split(' ').first;
-    final auth = context.watch<AuthProvider>();
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      decoration: const BoxDecoration(
+        gradient: AppColors.gradHeader,
+        borderRadius: BorderRadius.only(
+          bottomLeft:  Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/profile')
-                .then((_) { if (mounted) setState(() => _selectedIndex = 0); }),
-            child: Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: _accent.withOpacity(0.25), width: 2),
-                color: _accent.withOpacity(0.08),
+          // Header row
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/profile')
+                    .then((_) { if (mounted) setState(() => _selectedIndex = 0); }),
+                child: Container(
+                  width: 46, height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.35), width: 2),
+                    color: Colors.white.withOpacity(0.15),
+                  ),
+                  child: avatar != null && avatar.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            '$baseHost$avatar',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _avatarFallback(firstName),
+                          ),
+                        )
+                      : _avatarFallback(firstName),
+                ),
               ),
-              child: avatar != null && avatar.isNotEmpty
-                  ? ClipOval(child: Image.network('$baseHost$avatar', fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _avatarFallback(firstName)))
-                  : _avatarFallback(firstName),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hello, $firstName 👋',
+                      style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Text(
+                      'ISET Mahdia',
+                      style: TextStyle(
+                        fontSize: 12, color: Colors.white60,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _IconBtn(
+                icon: Icons.notifications_outlined,
+                badgeCount: _notifCount,
+                onDark: true,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen()),
+                ).then((_) => setState(
+                    () => _notifCount =
+                        NotificationService.instance.unreadCount)),
+              ),
+              if (auth.canAddProduct) ...[
+                const SizedBox(width: 8),
+                _IconBtn(
+                  icon: Icons.add,
+                  onDark: true,
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/addproduct'),
+                ),
+              ],
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // Search + filter row
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/list_equipment'),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.22)),
+                  ),
+                  child: const Row(children: [
+                    SizedBox(width: 14),
+                    Icon(Icons.search, color: Colors.white70, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Search equipment...',
+                      style: TextStyle(color: Colors.white60, fontSize: 13),
+                    ),
+                  ]),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Hello, $firstName 👋',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _dark)),
-              const Text('ISET Mahdia',
-                  style: TextStyle(fontSize: 12, color: _muted, fontWeight: FontWeight.w400)),
-            ]),
-          ),
-          _IconBtn(
-            icon: Icons.notifications_outlined,
-            badgeCount: _notifCount,
-            onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const NotificationsScreen()))
-                .then((_) => setState(
-                    () => _notifCount = NotificationService.instance.unreadCount)),
-          ),
-          if (auth.canAddProduct) ...[
-            const SizedBox(width: 8),
-            _IconBtn(
-              icon: Icons.add,
-              onTap: () => Navigator.pushNamed(context, '/addproduct'),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(
+                context,
+                auth.canViewMaps ? '/vueinstitut' : '/list_equipment',
+              ),
+              child: Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.28)),
+                ),
+                child: const Icon(Icons.tune_rounded,
+                    color: Colors.white, size: 20),
+              ),
             ),
-          ],
+          ]),
         ],
       ),
     );
   }
 
   Widget _avatarFallback(String name) => Center(
-        child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _accent)),
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+          style: const TextStyle(
+            fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white,
+          ),
+        ),
       );
-
-  // ── Search row ───────────────────────────────────────────────────────────────
-
-  Widget _buildSearchRow(AuthProvider auth) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Row(children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/list_equipment'),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: _white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
-              ),
-              child: const Row(children: [
-                SizedBox(width: 14),
-                Icon(Icons.search, color: _muted, size: 20),
-                SizedBox(width: 8),
-                Text('Search equipment...', style: TextStyle(color: _muted, fontSize: 13)),
-              ]),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, auth.canViewMaps ? '/vueinstitut' : '/list_equipment'),
-          child: Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [_accent, Color(0xFF6B5BFD)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.tune_rounded, color: _white, size: 20),
-          ),
-        ),
-      ]),
-    );
-  }
 
   // ── Maps picker sheet ────────────────────────────────────────────────────────
 
   void _showMapsSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bgCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => SafeArea(
         top: false,
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+            20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            const Text('Maps',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1D2E))),
-            const SizedBox(height: 4),
-            const Text('Choose a view',
-                style: TextStyle(fontSize: 13, color: Color(0xFFB0B7C3))),
-            const SizedBox(height: 20),
-            _mapTile(
-              icon: Icons.map_outlined,
-              color: const Color(0xFF22C55E),
-              title: 'Equipment Map 2D',
-              subtitle: 'Interactive 2D room layout',
-              route: '/equipmentmap',
-            ),
-            const SizedBox(height: 12),
-            _mapTile(
-              icon: Icons.view_in_ar_outlined,
-              color: const Color(0xFF4A7CFC),
-              title: 'Equipment Map 3D',
-              subtitle: 'Interactive 3D room layout',
-              route: '/3dmap',
-            ),
-            const SizedBox(height: 12),
-            _mapTile(
-              icon: Icons.apartment_outlined,
-              color: const Color(0xFF8B5CF6),
-              title: 'Institute View 3D',
-              subtitle: 'ISET Mahdia — all departments',
-              route: '/vueinstitut',
-            ),
-            const SizedBox(height: 12),
-            _mapTile(
-              icon: Icons.swap_horiz_rounded,
-              color: const Color(0xFFF59E0B),
-              title: 'Move Log',
-              subtitle: 'Track every item relocation',
-              route: '/movelog',
-            ),
-            const SizedBox(height: 12),
-            _mapTile(
-              icon: Icons.radar_rounded,
-              color: const Color(0xFFEF4444),
-              title: 'AirTag Tracker',
-              subtitle: 'Live location of all equipment',
-              route: '/tracker',
-            ),
-          ],
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Maps & Navigation',
+                style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w700,
+                  color: AppColors.textH,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose a view',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 20),
+              _mapTile(
+                icon: Icons.map_outlined,
+                color: AppColors.success,
+                title: 'Equipment Map 2D',
+                subtitle: 'Interactive 2D room layout',
+                route: '/equipmentmap',
+              ),
+              const SizedBox(height: 10),
+              _mapTile(
+                icon: Icons.view_in_ar_outlined,
+                color: AppColors.primary,
+                title: 'Equipment Map 3D',
+                subtitle: 'Interactive 3D room layout',
+                route: '/3dmap',
+              ),
+              const SizedBox(height: 10),
+              _mapTile(
+                icon: Icons.apartment_outlined,
+                color: AppColors.accent,
+                title: 'Institute View 3D',
+                subtitle: 'ISET Mahdia — all departments',
+                route: '/vueinstitut',
+              ),
+              const SizedBox(height: 10),
+              _mapTile(
+                icon: Icons.swap_horiz_rounded,
+                color: AppColors.warning,
+                title: 'Move Log',
+                subtitle: 'Track every item relocation',
+                route: '/movelog',
+              ),
+              const SizedBox(height: 10),
+              _mapTile(
+                icon: Icons.radar_rounded,
+                color: AppColors.error,
+                title: 'AirTag Tracker',
+                subtitle: 'Live location of all equipment',
+                route: '/tracker',
+              ),
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _mapTile({
@@ -316,14 +387,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1D2E))),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFB0B7C3))),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600,
+                    color: AppColors.textH,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12, color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
           Icon(Icons.arrow_forward_ios_rounded, size: 14, color: color),
         ]),
@@ -333,18 +415,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section wrapper ──────────────────────────────────────────────────────────
 
-  Widget _buildSection({required String title, required Widget child, Widget? trailing}) {
+  Widget _buildSection({
+    required String title,
+    required Widget child,
+    Widget? trailing,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _dark)),
-          if (trailing != null) trailing,
-        ]),
-        const SizedBox(height: 14),
-        child,
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17, fontWeight: FontWeight.w700,
+                  color: AppColors.textH,
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -355,7 +452,14 @@ class _IconBtn extends StatelessWidget {
   final IconData icon;
   final int badgeCount;
   final VoidCallback onTap;
-  const _IconBtn({required this.icon, required this.onTap, this.badgeCount = 0});
+  final bool onDark;
+
+  const _IconBtn({
+    required this.icon,
+    required this.onTap,
+    this.badgeCount = 0,
+    this.onDark = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -368,13 +472,28 @@ class _IconBtn extends StatelessWidget {
         Container(
           width: 42, height: 42,
           decoration: BoxDecoration(
-            color: Colors.white, shape: BoxShape.circle,
-            boxShadow: [BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 2))],
+            color: onDark
+                ? Colors.white.withOpacity(0.18)
+                : AppColors.bgCard,
+            shape: BoxShape.circle,
+            border: onDark
+                ? Border.all(color: Colors.white.withOpacity(0.28))
+                : null,
+            boxShadow: onDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
-          child: Icon(icon, size: 20, color: const Color(0xFF1A1D2E)),
+          child: Icon(
+            icon,
+            size: 20,
+            color: onDark ? Colors.white : AppColors.textH,
+          ),
         ),
         if (badgeCount > 0)
           Positioned(
@@ -384,16 +503,23 @@ class _IconBtn extends StatelessWidget {
               height: 16,
               padding: EdgeInsets.symmetric(horizontal: wide ? 3 : 0),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444),
+                color: AppColors.error,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white, width: 1.5),
+                border: Border.all(
+                  color: onDark
+                      ? Colors.transparent
+                      : AppColors.bgCard,
+                  width: 1.5,
+                ),
               ),
               child: Center(
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 9, fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),
@@ -421,46 +547,55 @@ class _BottomNav extends StatelessWidget {
     required this.onScanTap,
   });
 
-  static const _accent = Color(0xFF4A7CFC);
-  static const _muted  = Color(0xFFB0B7C3);
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 74,
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 20, offset: const Offset(0, -4))],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _item(0, Icons.home_rounded,        Icons.home_outlined,        'Home'),
-          _item(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Inventory'),
-          // Centre scan button
-          GestureDetector(
-            onTap: onScanTap,
-            child: Container(
-              width: 58, height: 58,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_accent, Color(0xFF6B5BFD)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [BoxShadow(color: _accent.withOpacity(0.38), blurRadius: 14, offset: const Offset(0, 6))],
-              ),
-              child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 26),
-            ),
+        color: AppColors.bgCard,
+        border: const Border(
+          top: BorderSide(color: AppColors.border, width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
           ),
-          // Reports tab — hidden for magazinier
-          if (showReports)
-            _item(3, Icons.map_rounded, Icons.map_outlined, 'Maps'),
-          // Users tab — admin only
-          if (showUsers)
-            _item(5, Icons.group_rounded, Icons.group_outlined, 'Users'),
-          _item(4, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 62,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _item(0, Icons.home_rounded,        Icons.home_outlined,        'Home'),
+              _item(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Inventory'),
+              // Centre scan FAB
+              GestureDetector(
+                onTap: onScanTap,
+                child: Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.gradPrimary,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppColors.shadowColored(AppColors.primary),
+                  ),
+                  child: const Icon(
+                    Icons.qr_code_scanner,
+                    color: Colors.white, size: 24,
+                  ),
+                ),
+              ),
+              if (showReports)
+                _item(3, Icons.map_rounded,   Icons.map_outlined,    'Maps'),
+              if (showUsers)
+                _item(5, Icons.group_rounded, Icons.group_outlined,  'Users'),
+              _item(4, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -472,15 +607,37 @@ class _BottomNav extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 60,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(sel ? active : inactive, size: 22, color: sel ? _accent : _muted),
-          const SizedBox(height: 3),
-          Text(label,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Active indicator pill
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              width: sel ? 22 : 0,
+              height: 3,
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Icon(
+              sel ? active : inactive,
+              size: 22,
+              color: sel ? AppColors.primary : AppColors.textMuted,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
               style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                  color: sel ? _accent : _muted)),
-        ]),
+                fontSize: 10,
+                fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
+                color: sel ? AppColors.primary : AppColors.textMuted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

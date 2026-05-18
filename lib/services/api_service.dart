@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/download_helper.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.31.23:3000/api';
+  static const String baseUrl = 'http://172.20.10.6:3000/api';
 
   static final _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -210,6 +210,16 @@ class ApiService {
     final res = await http.delete(
       Uri.parse('$baseUrl/auth/users/$userId'),
       headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createUser(
+      String name, String email, String password, String role) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/users'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'name': name, 'email': email, 'password': password, 'role': role}),
     );
     return jsonDecode(res.body) as Map<String, dynamic>;
   }

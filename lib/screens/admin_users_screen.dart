@@ -16,10 +16,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   static const _roles = ['admin', 'magazinier', 'technicien'];
 
   static const _roleColors = {
-    'admin':      Color(0xFFEF4444),
-    'magazinier': Color(0xFF4F46E5),
-    'technicien': Color(0xFF10B981),
-    'user':       Color(0xFF10B981),
+    'admin':      Color(0xFF6D28D9),   // violet — elevated authority
+    'magazinier': AppColors.primary,   // indigo
+    'technicien': AppColors.accent,    // sky
+    'user':       AppColors.accent,
   };
 
   static const _roleLabels = {
@@ -94,8 +94,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     if (res['success'] == true && mounted) {
       setState(() => _users.removeWhere((u) => u['id'] == user['id']));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${user['name']} supprimé'),
-            backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text('${user['name']} deleted'),
+            backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating),
       );
     }
   }
@@ -103,15 +103,23 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   void _showRolePicker(Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Changer le rôle de ${user['name']}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Change role — ${user['name']}',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textH)),
             const SizedBox(height: 16),
             ..._roles.map((r) {
               final selected = (user['role'] as String?) == r;
@@ -125,19 +133,29 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: selected ? color.withOpacity(0.1) : Colors.white,
+                    color: selected ? color.withOpacity(0.08) : AppColors.bgMuted,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: selected ? color : Colors.grey[300]!, width: selected ? 1.5 : 1),
+                    border: Border.all(
+                        color: selected ? color : AppColors.border,
+                        width: selected ? 1.5 : 1),
                   ),
                   child: Row(children: [
-                    Icon(_roleIcon(r), color: color, size: 20),
+                    Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(_roleIcon(r), color: color, size: 18),
+                    ),
                     const SizedBox(width: 12),
                     Text(_roleLabels[r] ?? r,
-                        style: TextStyle(fontSize: 14,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                            color: selected ? color : Colors.black87)),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected ? color : AppColors.textH)),
                     const Spacer(),
-                    if (selected) Icon(Icons.check_circle, color: color, size: 18),
+                    if (selected) Icon(Icons.check_circle_rounded, color: color, size: 18),
                   ]),
                 ),
               );
@@ -161,27 +179,38 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.gradHeader),
+        ),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textH),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Gestion Utilisateurs',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textH)),
-            Text('Gérer les rôles et accès',
-                style: TextStyle(fontSize: 12, color: AppColors.textBody)),
+            Text('User Management',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
+            Text('Roles & access control',
+                style: TextStyle(fontSize: 11, color: Colors.white70)),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: _load,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddUserSheet(context),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Add User', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -189,7 +218,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               onRefresh: _load,
               color: AppColors.primary,
               child: ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 itemCount: _users.length,
                 itemBuilder: (_, i) => _UserCard(
                   user: _users[i],
@@ -202,6 +231,211 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  void _showAddUserSheet(BuildContext context) {
+    final nameCtrl  = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final passCtrl  = TextEditingController();
+    String selectedRole = 'technicien';
+    bool obscure = true;
+    bool saving  = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Header
+              Row(children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.gradPrimary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 12),
+                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('New User', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textH)),
+                  Text('Account active immediately', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                ]),
+              ]),
+              const SizedBox(height: 20),
+              // Name
+              _sheetField(nameCtrl,  'Full name',  Icons.person_outline_rounded),
+              const SizedBox(height: 12),
+              // Email
+              _sheetField(emailCtrl, 'Email address', Icons.email_outlined,
+                  type: TextInputType.emailAddress),
+              const SizedBox(height: 12),
+              // Password
+              TextField(
+                controller: passCtrl,
+                obscureText: obscure,
+                style: const TextStyle(fontSize: 14, color: AppColors.textH),
+                decoration: InputDecoration(
+                  hintText: 'Password (min. 6 chars)',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18, color: AppColors.textMuted),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        size: 18, color: AppColors.textMuted),
+                    onPressed: () => setSheet(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Role selector
+              const Text('Role', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+              const SizedBox(height: 8),
+              Row(children: _roles.map((r) {
+                final sel = selectedRole == r;
+                final color = _roleColors[r] ?? AppColors.primary;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setSheet(() => selectedRole = r),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: EdgeInsets.only(right: r != _roles.last ? 8 : 0),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: sel ? color.withOpacity(0.1) : AppColors.bgMuted,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: sel ? color : AppColors.border,
+                            width: sel ? 1.5 : 1),
+                      ),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(_roleIcon(r), size: 18, color: sel ? color : AppColors.textMuted),
+                        const SizedBox(height: 4),
+                        Text(_roleLabels[r] ?? r,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                                color: sel ? color : AppColors.textBody)),
+                      ]),
+                    ),
+                  ),
+                );
+              }).toList()),
+              const SizedBox(height: 20),
+              // Submit
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: saving
+                    ? Container(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.gradPrimary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
+                        label: const Text('Create Account',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        onPressed: () async {
+                          final name  = nameCtrl.text.trim();
+                          final email = emailCtrl.text.trim();
+                          final pass  = passCtrl.text;
+                          if (name.isEmpty || email.isEmpty || pass.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('All fields are required'),
+                                  behavior: SnackBarBehavior.floating),
+                            );
+                            return;
+                          }
+                          setSheet(() => saving = true);
+                          try {
+                            final res = await ApiService.createUser(name, email, pass, selectedRole);
+                            if (!context.mounted) return;
+                            if (res['success'] == true) {
+                              Navigator.pop(ctx);
+                              await _load();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('$name added successfully'),
+                                    backgroundColor: AppColors.primary,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(res['message'] ?? 'Failed to create user'),
+                                  backgroundColor: AppColors.error,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e'),
+                                    backgroundColor: AppColors.error,
+                                    behavior: SnackBarBehavior.floating),
+                              );
+                            }
+                          } finally {
+                            setSheet(() => saving = false);
+                          }
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static TextField _sheetField(
+    TextEditingController ctrl,
+    String hint,
+    IconData icon, {
+    TextInputType? type,
+  }) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: type,
+      style: const TextStyle(fontSize: 14, color: AppColors.textH),
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(icon, size: 18, color: AppColors.textMuted),
+      ),
     );
   }
 }
@@ -237,9 +471,10 @@ class _UserCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.shadowSm,
       ),
       child: Row(children: [
         // Avatar
@@ -270,10 +505,10 @@ class _UserCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
+                    color: AppColors.bgMuted,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text('Inactif', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  child: const Text('Inactive', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
                 ),
             ]),
             const SizedBox(height: 2),
@@ -310,15 +545,17 @@ class _UserCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: isActive ? const Color(0xFFE6F9F2) : Colors.grey[100],
+                color: isActive ? const Color(0xFFEEF2FF) : AppColors.bgMuted,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: isActive ? AppColors.primary.withOpacity(0.3) : AppColors.border),
               ),
               child: Text(
-                isActive ? 'Actif' : 'Bloquer',
+                isActive ? 'Active' : 'Blocked',
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: isActive ? const Color(0xFF10B981) : Colors.grey),
+                    color: isActive ? AppColors.primary : AppColors.textMuted),
               ),
             ),
           ),
@@ -329,14 +566,15 @@ class _UserCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFEEEE),
+                color: AppColors.errorBg,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.error.withOpacity(0.25)),
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.delete_outline, size: 11, color: Color(0xFFEF4444)),
+                Icon(Icons.delete_outline, size: 11, color: AppColors.error),
                 SizedBox(width: 3),
-                Text('Supprimer',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
+                Text('Delete',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
               ]),
             ),
           ),

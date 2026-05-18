@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_colors.dart';
 
 class RecentActivity extends StatefulWidget {
   const RecentActivity({Key? key}) : super(key: key);
@@ -52,7 +53,7 @@ class _RecentActivityState extends State<RecentActivity> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 24),
-          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4A7CFC)),
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
         ),
       );
     }
@@ -69,12 +70,12 @@ class _RecentActivityState extends State<RecentActivity> {
                 Container(
                   width: 48, height: 48,
                   decoration: const BoxDecoration(
-                      color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-                  child: const Icon(Icons.refresh_rounded, color: Color(0xFFB0B7C3), size: 24),
+                      color: AppColors.bgMuted, shape: BoxShape.circle),
+                  child: const Icon(Icons.refresh_rounded, color: AppColors.textMuted, size: 24),
                 ),
                 const SizedBox(height: 10),
                 const Text('Tap to retry',
-                    style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 13)),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
               ],
             ),
           ),
@@ -92,21 +93,21 @@ class _RecentActivityState extends State<RecentActivity> {
               Container(
                 width: 56, height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.bgMuted,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(Icons.history_toggle_off_outlined,
-                    size: 28, color: Color(0xFFB0B7C3)),
+                    size: 28, color: AppColors.textMuted),
               ),
               const SizedBox(height: 12),
               const Text('No recent activity',
                   style: TextStyle(
-                      color: Color(0xFF64748B),
+                      color: AppColors.textBody,
                       fontSize: 14,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               const Text('Scan a QR code to get started',
-                  style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
             ],
           ),
         ),
@@ -115,12 +116,9 @@ class _RecentActivityState extends State<RecentActivity> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3))],
+        boxShadow: AppColors.shadowMd,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -129,7 +127,7 @@ class _RecentActivityState extends State<RecentActivity> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _items.length,
           separatorBuilder: (_, __) =>
-              Divider(height: 1, indent: 72, endIndent: 16, color: Colors.grey[100]),
+              const Divider(height: 1, indent: 72, endIndent: 16, color: AppColors.border),
           itemBuilder: (ctx, i) => _ActivityTile(
             item: _items[i],
             timeAgo: _timeAgo(_items[i]['scanned_at'] as String?),
@@ -157,8 +155,8 @@ class _ActivityTile extends StatelessWidget {
     ),
     'scan': (
       icon: Icons.qr_code_scanner,
-      color: Color(0xFF4A7CFC),
-      bg: Color(0xFFEEF2FF),
+      color: AppColors.primary,
+      bg: AppColors.primaryGlow,
       label: 'Scanned',
     ),
     'dept_qr': (
@@ -257,7 +255,7 @@ class _ActivityTile extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1D2E))),
+                        color: AppColors.textH)),
                 const SizedBox(height: 4),
 
                 // Badges row
@@ -277,7 +275,7 @@ class _ActivityTile extends StatelessWidget {
                       child: Text(categoryName,
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 10, color: Color(0xFFB0B7C3))),
+                              fontSize: 10, color: AppColors.textMuted)),
                     ),
                   ],
                 ]),
@@ -317,7 +315,7 @@ class _ActivityTile extends StatelessWidget {
               Text(timeAgo,
                   style: const TextStyle(
                       fontSize: 10,
-                      color: Color(0xFFB0B7C3),
+                      color: AppColors.textMuted,
                       fontWeight: FontWeight.w400)),
               const SizedBox(height: 6),
               Row(mainAxisSize: MainAxisSize.min, children: [
