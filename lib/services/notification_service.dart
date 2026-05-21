@@ -69,6 +69,12 @@ class NotificationService extends ChangeNotifier {
           toRoom:      msg['toRoom']          as String?,
           body:        mover != null ? 'By $mover' : null,
         );
+      } else if (msg['type'] == 'product_retired') {
+        addRetiredNotification(
+          serverId:    msg['notificationId'] as String?,
+          productName: msg['productName']    as String?,
+          body:        msg['body']           as String?,
+        );
       }
     } catch (_) {}
   }
@@ -91,6 +97,26 @@ class NotificationService extends ChangeNotifier {
       productName: productName,
       fromRoom:    fromRoom,
       toRoom:      toRoom,
+      createdAt:   DateTime.now(),
+    );
+    _notifications.insert(0, n);
+    notifyListeners();
+  }
+
+  void addRetiredNotification({
+    String? serverId,
+    String? productName,
+    String? body,
+  }) {
+    if (serverId != null && _notifications.any((n) => n.serverId == serverId)) return;
+
+    final n = AppNotification(
+      id:          serverId ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      serverId:    serverId,
+      type:        'product_retired',
+      title:       'Équipement réformé',
+      body:        body ?? '',
+      productName: productName,
       createdAt:   DateTime.now(),
     );
     _notifications.insert(0, n);

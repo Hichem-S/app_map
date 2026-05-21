@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../models/department.dart';
 import '../utils/app_colors.dart';
 import 'dept_rooms_screen.dart';
+import 'product_detail_screen.dart';
 
 final _baseHost = ApiService.baseUrl.replaceAll('/api', '');
 
@@ -21,6 +22,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isSearching = false;
   bool _scanned = false;
   bool _cameraActive = true;
+  bool _processing = false;
+  String? _scanError; // non-null = camera stopped after a failed scan
   bool _historyLoading = true;
   bool _isLoadingSuggestions = false;
   List<Map<String, dynamic>> _suggestions = [];
@@ -174,7 +177,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       }
 
       if (productId != null) {
-        final data = await ApiService.getProductByQR(productId);
+        final data = await ApiService.getProduct(productId);
         if (!mounted) return;
         if (data['success'] == true) {
           final product = Product.fromJson(data['data'] as Map<String, dynamic>);
@@ -182,7 +185,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           await ApiService.addScanHistory(product.id);
           await _showProductDialog(product);
         } else {
-          _snack(data['message'] ?? 'Product not found');
+          await _showScanError(data['message'] ?? 'Product not found');
         }
         return;
       }
@@ -191,17 +194,24 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       final barcodeRes = await ApiService.checkBarcode(trimmed);
       if (!mounted) return;
       if (barcodeRes['exists'] == true && barcodeRes['data'] != null) {
-        final product = Product.fromJson(barcodeRes['data'] as Map<String, dynamic>);
-        _addRecentScan(product);
-        await ApiService.addScanHistory(product.id);
-        await _showProductDialog(product);
+        final fullData = await ApiService.getProduct((barcodeRes['data'] as Map)['id'] as String);
+        if (!mounted) return;
+        if (fullData['success'] == true) {
+          final product = Product.fromJson(fullData['data'] as Map<String, dynamic>);
+          _addRecentScan(product);
+          await ApiService.addScanHistory(product.id);
+          await _showProductDialog(product);
+        } else {
+          await _showScanError('Product not found');
+        }
       } else {
-        _snack('No product registered for this barcode');
+        await _showScanError('No product registered for this barcode');
       }
     } catch (e) {
       if (!mounted) return;
-      _snack('Error: $e');
+      await _showScanError('Error: $e');
     } finally {
+      _processing = false;
       if (mounted) setState(() { _isSearching = false; _scanned = false; });
     }
   }
@@ -219,77 +229,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     });
   }
 
-  Future<void> _showProductDialog(Product product) async {
-    // Stop camera while dialog is on screen to prevent white-screen on resume
+  Future<void> _showScanError(String message) async {
     await _cameraController.stop();
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Color(0xFF10B981)),
-            SizedBox(width: 8),
-            Text('Product Found'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (product.photoUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  '$_baseHost${product.photoUrl}',
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              ),
-            const SizedBox(height: 12),
-            Text(product.name,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 6),
-            _row('SKU', product.sku),
-            if (product.categoryName != null) _row('Type', product.categoryName!),
-            _row('Quantity', product.quantity.toString()),
-            if (product.price != null) _row('Price', '${product.price!.toStringAsFixed(2)} TND'),
-            if (product.storageLocation != null) _row('Location', product.storageLocation!),
-            if (product.description != null) ...[
-              const SizedBox(height: 6),
-              Text(product.description!,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: AppColors.textBody)),
-          ),
-        ],
-      ),
+    if (mounted) setState(() { _cameraActive = false; _scanError = message; });
+  }
+
+  Future<void> _resumeCamera() async {
+    setState(() { _scanError = null; _cameraActive = true; });
+    await _cameraController.start();
+  }
+
+  Future<void> _showProductDialog(Product product) async {
+    await _cameraController.stop();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product)),
     );
-    // Restart camera after dialog is dismissed
     if (mounted && _cameraActive) {
       await _cameraController.start();
     }
   }
-
-  Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Row(
-          children: [
-            Text('$label: ', style: const TextStyle(fontSize: 13, color: AppColors.textBody)),
-            Expanded(
-              child: Text(value,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-      );
 
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -399,10 +358,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               MobileScanner(
                 controller: _cameraController,
                 onDetect: (capture) {
-                  if (_scanned || _isSearching || capture.barcodes.isEmpty) return;
+                  if (_processing || _scanned || _isSearching || capture.barcodes.isEmpty) return;
                   final b = capture.barcodes.first;
                   final code = b.rawValue ?? b.displayValue;
-                  if (code != null && code.isNotEmpty) _onQRDetected(code);
+                  if (code != null && code.isNotEmpty) {
+                    _processing = true;
+                    _onQRDetected(code);
+                  }
                 },
               ),
               // Overlay frame
@@ -429,7 +391,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 child: GestureDetector(
                   onTap: () {
                     _cameraController.stop();
-                    setState(() => _cameraActive = false);
+                    setState(() { _cameraActive = false; _scanError = null; });
                   },
                   child: Container(
                     width: 40, height: 40,
@@ -478,28 +440,49 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ) : Container(
             color: Colors.black,
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.videocam_off, color: Colors.white54, size: 48),
-                  const SizedBox(height: 16),
-                  const Text('Camera stopped',
-                      style: TextStyle(color: Colors.white54, fontSize: 14)),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _cameraController.start();
-                      setState(() => _cameraActive = true);
-                    },
-                    icon: const Icon(Icons.videocam),
-                    label: const Text('Resume Camera'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72, height: 72,
+                      decoration: BoxDecoration(
+                        color: _scanError != null
+                            ? Colors.red.withValues(alpha: 0.2)
+                            : Colors.white12,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _scanError != null ? Icons.search_off : Icons.videocam_off,
+                        color: _scanError != null ? Colors.redAccent : Colors.white54,
+                        size: 36,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Text(
+                      _scanError ?? 'Camera stopped',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _scanError != null ? Colors.redAccent : Colors.white54,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _resumeCamera,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: Text(_scanError != null ? 'Scan Again' : 'Resume Camera'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -330,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _mapTile(
                 icon: Icons.apartment_outlined,
                 color: AppColors.accent,
-                title: 'Institute View 3D',
+                title: 'Institute View',
                 subtitle: 'ISET Mahdia — all departments',
                 route: '/vueinstitut',
               ),

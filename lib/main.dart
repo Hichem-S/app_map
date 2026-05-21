@@ -25,6 +25,8 @@ import 'screens/verify_email_screen.dart';
 import 'screens/admin_users_screen.dart';
 import 'screens/move_log_screen.dart';
 import 'screens/tracker_screen.dart';
+import 'tracker/accessory_registry.dart';
+import 'tracker/location_model.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +36,8 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AccessoryRegistry()),
+        ChangeNotifierProvider(create: (_) => TrackerLocationModel()),
       ],
       child: const MyApp(),
     ),

@@ -917,7 +917,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildNavigableItem(
             icon: Icons.apartment_outlined,
             iconColor: AppColors.primary,
-            title: 'Institute View 3D',
+            title: 'Institute View',
             subtitle: 'ISET Mahdia — all departments',
             onTap: () => Navigator.pushNamed(context, '/vueinstitut'),
           ),

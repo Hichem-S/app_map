@@ -75,9 +75,11 @@ class _OverviewStatsState extends State<OverviewStats> {
     int _i(String k) => (s[k] as num?)?.toInt() ?? 0;
     final total = _i('total_products');
     final inStk = _i('status_in_stock');
+    final oper  = _i('status_operational');
     final inMnt = _i('status_in_maintenance');
     final crit  = _i('status_critical_issue');
     final retd  = _i('status_retired');
+    final lost  = _i('status_lost');
     final cats  = _i('categories_used');
     final scans = _i('total_scans');
     final value = (s['total_value'] as num?)?.toDouble() ?? 0.0;
@@ -94,18 +96,26 @@ class _OverviewStatsState extends State<OverviewStats> {
           const SizedBox(width: 12),
           Expanded(child: _BigCard(
             label: 'Operational',
-            value: inStk.toString(),
+            value: oper.toString(),
             icon: Icons.check_circle_outline,
             iconColor: AppColors.primary,
             iconBg: const Color(0xFFEEF2FF),
             accent: AppColors.primary,
-            percent: total > 0 ? inStk / total : null,
+            percent: (total > 0 && oper > 0) ? (oper / total).clamp(0.0, 1.0) : null,
           )),
         ]),
         const SizedBox(height: 10),
 
-        // Middle: Maintenance + Critical + Retired
+        // Row 2: In Stock + Maintenance + Critical
         Row(children: [
+          Expanded(child: _StatusCard(
+            label: 'In Stock',
+            value: inStk,
+            icon: Icons.inventory_2_outlined,
+            color: const Color(0xFF10B981),
+            bg: const Color(0xFFE6F9F2),
+          )),
+          const SizedBox(width: 10),
           Expanded(child: _StatusCard(
             label: 'Maintenance',
             value: inMnt,
@@ -121,13 +131,25 @@ class _OverviewStatsState extends State<OverviewStats> {
             color: const Color(0xFF6D28D9),
             bg: const Color(0xFFEDE9FE),
           )),
-          const SizedBox(width: 10),
+        ]),
+        const SizedBox(height: 10),
+
+        // Row 3: Retired + Lost
+        Row(children: [
           Expanded(child: _StatusCard(
             label: 'Retired',
             value: retd,
             icon: Icons.archive_outlined,
             color: AppColors.textBody,
             bg: AppColors.bgMuted,
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: _StatusCard(
+            label: 'Lost',
+            value: lost,
+            icon: Icons.search_off_outlined,
+            color: const Color(0xFF8B5CF6),
+            bg: const Color(0xFFF3E8FF),
           )),
         ]),
         const SizedBox(height: 10),

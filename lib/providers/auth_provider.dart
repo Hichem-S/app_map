@@ -15,10 +15,10 @@ class AuthProvider extends ChangeNotifier {
   /// Only magazinier physically adds stock
   bool get canAddProduct    => isMagazinier;
 
-  /// Admin + magazinier can edit, delete, change status
+  /// Admin + magazinier can edit and delete; only admin + technicien can change status
   bool get canEditProduct   => isAdmin || isMagazinier;
   bool get canDeleteProduct => isAdmin || isMagazinier;
-  bool get canChangeStatus  => isAdmin || isMagazinier;
+  bool get canChangeStatus  => isAdmin || isTechnicien;
 
   /// Admin + technicien see 2D/3D maps and can place equipment
   bool get canViewMaps => isAdmin || isTechnicien;

@@ -26,6 +26,7 @@ class Product {
   final String? departmentCode;
   final String? departmentName;
   final String? departmentColor;
+  final String? rfidTag;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -54,6 +55,7 @@ class Product {
     this.departmentCode,
     this.departmentName,
     this.departmentColor,
+    this.rfidTag,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -91,6 +93,7 @@ class Product {
       departmentCode:  json['department_code'],
       departmentName:  json['department_name'],
       departmentColor: json['department_color'],
+      rfidTag:         json['rfid_tag'],
       specifications: json['specifications'] is Map
           ? Map<String, dynamic>.from(json['specifications'] as Map)
           : const {},
@@ -124,6 +127,7 @@ class Product {
     Object? departmentCode = _sentinel,
     Object? departmentName = _sentinel,
     Object? departmentColor = _sentinel,
+    Object? rfidTag = _sentinel,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -152,6 +156,7 @@ class Product {
       departmentCode:  departmentCode  == _sentinel ? this.departmentCode  : departmentCode  as String?,
       departmentName:  departmentName  == _sentinel ? this.departmentName  : departmentName  as String?,
       departmentColor: departmentColor == _sentinel ? this.departmentColor : departmentColor as String?,
+      rfidTag:         rfidTag         == _sentinel ? this.rfidTag         : rfidTag         as String?,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

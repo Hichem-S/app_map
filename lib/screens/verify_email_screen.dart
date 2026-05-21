@@ -16,12 +16,23 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   bool _loading    = false;
   bool _resending  = false;
   String _email    = '';
+  String? _devOtp;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final arg = ModalRoute.of(context)?.settings.arguments;
-    if (arg is String) _email = arg;
+    if (arg is String) {
+      _email = arg;
+    } else if (arg is Map) {
+      _email  = arg['email'] as String? ?? '';
+      _devOtp = arg['devOtp'] as String?;
+      if (_devOtp != null && _devOtp!.length == 6) {
+        for (int i = 0; i < 6; i++) {
+          _otpControllers[i].text = _devOtp![i];
+        }
+      }
+    }
   }
 
   @override
@@ -66,8 +77,18 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   Future<void> _resend() async {
     setState(() => _resending = true);
     try {
-      await ApiService.resendVerification(_email);
-      if (mounted) _snack('New code sent — check your inbox');
+      final data = await ApiService.resendVerification(_email);
+      if (!mounted) return;
+      final newDevOtp = data['devOtp'] as String?;
+      if (newDevOtp != null && newDevOtp.length == 6) {
+        setState(() => _devOtp = newDevOtp);
+        for (int i = 0; i < 6; i++) {
+          _otpControllers[i].text = newDevOtp[i];
+        }
+        _snack('Email failed — code auto-filled: $newDevOtp');
+      } else {
+        _snack('New code sent — check your inbox');
+      }
     } catch (_) {
       if (mounted) _snack('Could not resend. Try again.');
     } finally {
@@ -97,6 +118,29 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
+
+              // Dev-mode banner
+              if (_devOtp != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Email delivery failed. Code auto-filled: $_devOtp',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // Icon with subtle glow ring
               Container(

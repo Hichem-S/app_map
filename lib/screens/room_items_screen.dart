@@ -31,10 +31,10 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
   StreamSubscription? _wsSub;
   OverlayEntry? _notifOverlay;
 
-  static const _statusLabels  = {'in_stock': 'In Stock', 'in_maintenance': 'Maintenance', 'critical_issue': 'Critical', 'retired': 'Retired'};
-  static const _statusColors  = {'in_stock': Color(0xFF10B981), 'in_maintenance': Color(0xFFF59E0B), 'critical_issue': Color(0xFFEF4444), 'retired': Color(0xFF6B7280)};
-  static const _statusBg      = {'in_stock': Color(0xFFE6F9F2), 'in_maintenance': Color(0xFFFFF8E6), 'critical_issue': Color(0xFFFFEEEE), 'retired': Color(0xFFF3F4F6)};
-  static const _statusIcons   = {'in_stock': Icons.check_circle, 'in_maintenance': Icons.build, 'critical_issue': Icons.warning_amber, 'retired': Icons.archive};
+  static const _statusLabels  = {'operational': 'Operational', 'in_stock': 'In Stock', 'in_maintenance': 'Maintenance', 'critical_issue': 'Critical', 'retired': 'Retired', 'lost': 'Lost'};
+  static const _statusColors  = {'operational': Color(0xFF4F46E5), 'in_stock': Color(0xFF10B981), 'in_maintenance': Color(0xFFF59E0B), 'critical_issue': Color(0xFFEF4444), 'retired': Color(0xFF6B7280), 'lost': Color(0xFF8B5CF6)};
+  static const _statusBg      = {'operational': Color(0xFFEEF2FF), 'in_stock': Color(0xFFE6F9F2), 'in_maintenance': Color(0xFFFFF8E6), 'critical_issue': Color(0xFFFFEEEE), 'retired': Color(0xFFF3F4F6), 'lost': Color(0xFFF3E8FF)};
+  static const _statusIcons   = {'operational': Icons.check_circle, 'in_stock': Icons.inventory_2, 'in_maintenance': Icons.build, 'critical_issue': Icons.warning_amber, 'retired': Icons.archive, 'lost': Icons.search_off};
 
   @override
   void initState() {

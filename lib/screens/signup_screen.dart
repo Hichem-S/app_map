@@ -36,11 +36,12 @@ class _SignupScreenState extends State<SignupScreen> {
     final password = _passwordController.text;
     final confirm  = _confirmController.text;
 
-    if (name.isEmpty)          { _snack('Please enter your full name'); return; }
-    if (email.isEmpty)         { _snack('Please enter your email'); return; }
-    if (password.length < 6)   { _snack('Password must be at least 6 characters'); return; }
-    if (password != confirm)   { _snack('Passwords do not match'); return; }
-    if (!_agreedToTerms)       { _snack('Please agree to the terms'); return; }
+    if (name.isEmpty)                    { _snack('Please enter your full name'); return; }
+    if (email.isEmpty)                   { _snack('Please enter your email'); return; }
+    if (!_validEmail(email))             { _snack('Please enter a valid email address'); return; }
+    if (password.length < 6)            { _snack('Password must be at least 6 characters'); return; }
+    if (password != confirm)            { _snack('Passwords do not match'); return; }
+    if (!_agreedToTerms)                { _snack('Please agree to the terms'); return; }
 
     setState(() => _isLoading = true);
     try {
@@ -48,18 +49,29 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
       if (data['success'] == true && data['requiresVerification'] == true) {
         Navigator.pushNamedAndRemoveUntil(
-          context, '/verify-email', (_) => false, arguments: email,
+          context, '/verify-email', (_) => false,
+          arguments: {'email': email, 'devOtp': data['devOtp'] as String?},
         );
       } else if (data['success'] == true) {
         Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
       } else {
-        _snack(data['message'] ?? 'Registration failed');
+        // Prefer the first specific field error over the generic "Validation failed" message
+        final errors = data['errors'] as List<dynamic>?;
+        final msg = (errors != null && errors.isNotEmpty)
+            ? (errors.first as Map<String, dynamic>)['message'] as String? ?? 'Registration failed'
+            : data['message'] as String? ?? 'Registration failed';
+        _snack(msg);
       }
     } catch (e) {
       if (mounted) _snack('Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  static bool _validEmail(String email) {
+    final i = email.indexOf('@');
+    return i > 0 && i < email.length - 1 && email.contains('.', i);
   }
 
   void _snack(String msg) =>

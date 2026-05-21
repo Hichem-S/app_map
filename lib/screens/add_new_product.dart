@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
+import '../utils/app_colors.dart';
 import '../utils/image_picker_helper.dart';
 
 // ─── Spec field definition ────────────────────────────────────────────────────
@@ -107,15 +108,9 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
 
   List<Map<String, String>> _categories = [];
 
-  // Storage location type: 'room' or 'stock'
-  String _locationType = 'room';
-
-  // Room assignment state
-  List<Map<String, dynamic>> _departments = [];
-  String? _selectedDeptId;
-  List<Map<String, dynamic>> _deptRooms = [];
-  bool _roomsLoading = false;
+  // Auto-assigned to Administration stock room
   String? _selectedRoomId;
+  bool _stockRoomLoading = true;
 
   static const _gradientColors = [Color(0xFF4F46E5), Color(0xFF7C3AED)];
 
@@ -129,7 +124,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     );
     _barcodeController.addListener(_onBarcodeChanged);
     _loadCategories();
-    _loadDepartments();
+    _loadStockRoom();
   }
 
   @override
@@ -161,24 +156,22 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     } catch (_) {}
   }
 
-  Future<void> _loadDepartments() async {
+  Future<void> _loadStockRoom() async {
     try {
-      final list = await ApiService.getDepartments();
-      if (mounted) {
-        setState(() => _departments = list.cast<Map<String, dynamic>>());
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _loadRoomsForDept(String deptId) async {
-    setState(() { _roomsLoading = true; _deptRooms = []; _selectedRoomId = null; });
-    try {
-      final list = await ApiService.getDepartmentRooms(deptId);
-      if (mounted) {
-        setState(() { _deptRooms = list.cast<Map<String, dynamic>>(); _roomsLoading = false; });
-      }
+      final depts = await ApiService.getDepartments();
+      final adm = (depts as List).cast<Map<String, dynamic>>()
+          .firstWhere((d) => d['code'] == 'ADM', orElse: () => {});
+      if (adm.isEmpty || !mounted) return;
+      final rooms = await ApiService.getDepartmentRooms(adm['id'] as String);
+      final stock = (rooms as List).cast<Map<String, dynamic>>()
+          .firstWhere((r) => (r['name'] as String).toLowerCase() == 'stock', orElse: () => {});
+      if (!mounted) return;
+      setState(() {
+        _selectedRoomId = stock.isNotEmpty ? stock['id'] as String : null;
+        _stockRoomLoading = false;
+      });
     } catch (_) {
-      if (mounted) setState(() => _roomsLoading = false);
+      if (mounted) setState(() => _stockRoomLoading = false);
     }
   }
 
@@ -313,7 +306,6 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     setState(() => _isLoading = true);
     debugPrint('[SUBMIT] photo=${_pickedXFile?.name} imageBytes=${_imageBytes?.length}');
     try {
-      final stockLoc = _locationType == 'stock' ? _stockController.text.trim() : null;
       final data = await ApiService.createProduct(
         name:            name,
         sku:             _skuIsAuto ? null : _skuController.text.trim(),
@@ -323,8 +315,8 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
         tags:            tags.isEmpty ? null : tags,
         quantity:        qty,
         price:           price,
-        storageLocation: stockLoc?.isEmpty == true ? null : stockLoc,
-        roomId:          _locationType == 'room' ? _selectedRoomId : null,
+        storageLocation: null,
+        roomId:          _selectedRoomId,
         photo:           _pickedXFile,
         photoBytes:      _imageBytes,
         specifications:  specs.isEmpty ? null : specs,
@@ -619,37 +611,6 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     return Color(int.parse('FF$h', radix: 16));
   }
 
-  Widget _buildLocTypeButton(String type, IconData icon, String label) {
-    final selected = _locationType == type;
-    return GestureDetector(
-      onTap: () => setState(() => _locationType = type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF4F46E5) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? const Color(0xFF4F46E5) : const Color(0xFFDDDDEE),
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18,
-                color: selected ? Colors.white : const Color(0xFF9090A0)),
-            const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : const Color(0xFF6B6B80))),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ─── Build ───────────────────────────────────────────────────────────────────
 
@@ -948,155 +909,51 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   ]),
                   const SizedBox(height: 28),
 
-                  // ── Storage Location ───────────────────────────────────────
+                  // ── Storage Location (auto: ADM Stock room) ───────────────
                   _buildSectionHeader('Storage Location', Icons.location_on_outlined),
                   const SizedBox(height: 16),
 
-                  // Location type toggle
-                  Row(children: [
-                    Expanded(child: _buildLocTypeButton('room',  Icons.meeting_room_outlined, 'Room')),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildLocTypeButton('stock', Icons.warehouse_outlined,     'Stock')),
-                  ]),
-                  const SizedBox(height: 16),
-
-                  // ── Room branch ───────────────────────────────────────────
-                  if (_locationType == 'room') ...[
-                    _buildLabel('Department'),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFDDDDEE)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedDeptId,
-                          hint: const Row(children: [
-                            Icon(Icons.business_outlined, color: Color(0xFF9090A0), size: 16),
-                            SizedBox(width: 8),
-                            Text('Select department',
-                                style: TextStyle(color: Color(0xFF9090A0), fontSize: 14)),
-                          ]),
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF9090A0)),
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('— None —', style: TextStyle(color: Color(0xFF9090A0))),
-                            ),
-                            ..._departments.map((d) {
-                              final c = _hexColor(d['color'] as String? ?? '4F46E5');
-                              return DropdownMenuItem(
-                                value: d['id'] as String,
-                                child: Row(children: [
-                                  Container(
-                                    width: 10, height: 10,
-                                    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('${d['code']} · ${d['name']}',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 14)),
-                                ]),
-                              );
-                            }),
-                          ],
-                          onChanged: (val) {
-                            final v = val == '' ? null : val;
-                            setState(() { _selectedDeptId = v; _selectedRoomId = null; _deptRooms = []; });
-                            if (v != null) _loadRoomsForDept(v);
-                          },
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgMuted,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryGlow,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.warehouse_outlined, color: AppColors.primary, size: 20),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _stockRoomLoading
+                              ? Row(children: const [
+                                  SizedBox(width: 14, height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                                  SizedBox(width: 8),
+                                  Text('Loading…', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                                ])
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text('Administration Générale',
+                                        style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                    SizedBox(height: 2),
+                                    Text('Stock',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textH)),
+                                  ],
+                                ),
+                        ),
+                        Icon(Icons.lock_outline, size: 16, color: AppColors.textMuted),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-
-                    _buildLabel('Room'),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: _selectedDeptId == null ? const Color(0xFFF0F1F5) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFDDDDEE)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: _roomsLoading
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 14),
-                              child: Row(children: [
-                                SizedBox(width: 20, height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4F46E5))),
-                                SizedBox(width: 12),
-                                Text('Loading rooms…',
-                                    style: TextStyle(color: Color(0xFF9090A0), fontSize: 14)),
-                              ]),
-                            )
-                          : DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _selectedRoomId,
-                                hint: Row(children: [
-                                  Icon(Icons.meeting_room_outlined,
-                                      color: _selectedDeptId == null
-                                          ? const Color(0xFFCCCCCC)
-                                          : const Color(0xFF9090A0),
-                                      size: 16),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _selectedDeptId == null
-                                        ? 'Select a department first'
-                                        : 'Select room',
-                                    style: TextStyle(
-                                        color: _selectedDeptId == null
-                                            ? const Color(0xFFCCCCCC)
-                                            : const Color(0xFF9090A0),
-                                        fontSize: 14),
-                                  ),
-                                ]),
-                                isExpanded: true,
-                                icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF9090A0)),
-                                items: _selectedDeptId == null
-                                    ? null
-                                    : [
-                                        const DropdownMenuItem(
-                                          value: '',
-                                          child: Text('— None —',
-                                              style: TextStyle(color: Color(0xFF9090A0))),
-                                        ),
-                                        ..._deptRooms.map((r) => DropdownMenuItem(
-                                              value: r['id'] as String,
-                                              child: Row(children: [
-                                                const Icon(Icons.meeting_room_outlined,
-                                                    size: 15, color: Color(0xFF9090A0)),
-                                                const SizedBox(width: 8),
-                                                Text(r['name'] as String,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(fontSize: 14)),
-                                              ]),
-                                            )),
-                                      ],
-                                onChanged: _selectedDeptId == null
-                                    ? null
-                                    : (val) => setState(() => _selectedRoomId = val == '' ? null : val),
-                              ),
-                            ),
-                    ),
-                  ],
-
-                  // ── Stock branch ──────────────────────────────────────────
-                  if (_locationType == 'stock') ...[
-                    _buildLabel('Stock Name / Reference'),
-                    _buildTextField(
-                      controller: _stockController,
-                      hint: 'e.g., Stock Principal, Réserve B2',
-                      prefixIcon: Icons.warehouse_outlined,
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Stockroom or warehouse area outside any department',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF9090A0)),
-                    ),
-                  ],
+                  ),
 
                   const SizedBox(height: 36),
 

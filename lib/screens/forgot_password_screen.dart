@@ -33,7 +33,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Navigator.pushReplacementNamed(
           context,
           '/reset-password',
-          arguments: email,
+          arguments: {'email': email, 'devOtp': data['devOtp'] as String?},
         );
       } else {
         _snack(data['message'] ?? 'Something went wrong');

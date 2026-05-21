@@ -20,12 +20,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _loading         = false;
   bool _resending       = false;
   String _email         = '';
+  String? _devOtp;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final arg = ModalRoute.of(context)?.settings.arguments;
-    if (arg is String) _email = arg;
+    if (arg is String) {
+      _email = arg;
+    } else if (arg is Map) {
+      _email  = arg['email'] as String? ?? '';
+      _devOtp = arg['devOtp'] as String?;
+      if (_devOtp != null && _devOtp!.length == 6) {
+        // Auto-fill the OTP boxes
+        for (int i = 0; i < 6; i++) {
+          _otpControllers[i].text = _devOtp![i];
+        }
+      }
+    }
   }
 
   @override
@@ -114,6 +126,29 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             children: [
               const SizedBox(height: 16),
 
+              // Dev-mode banner: shown when email could not be sent
+              if (_devOtp != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Email delivery failed. Code auto-filled: $_devOtp',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               Container(
                 width: 64, height: 64,
                 decoration: BoxDecoration(
@@ -124,8 +159,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
               const SizedBox(height: 24),
 
-              const Text(
-                'Check your email',
+              Text(
+                _devOtp != null ? 'Code auto-filled' : 'Check your email',
                 style: TextStyle(
                   fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textH,
                 ),

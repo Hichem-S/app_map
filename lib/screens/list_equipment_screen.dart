@@ -24,10 +24,12 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
 
   static const _statusOptions = [
     (null,             'All',         Color(0xFF6366F1)),
+    ('operational',    'Operational', Color(0xFF4F46E5)),
     ('in_stock',       'In Stock',    Color(0xFF10B981)),
     ('in_maintenance', 'Maintenance', Color(0xFFF59E0B)),
     ('critical_issue', 'Critical',    Color(0xFFEF4444)),
     ('retired',        'Retired',     Color(0xFF6B7280)),
+    ('lost',           'Lost',        Color(0xFF8B5CF6)),
   ];
 
   @override
@@ -88,6 +90,11 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
     _applyFilter();
   }
 
+  void _removeProduct(String id) {
+    setState(() => _all.removeWhere((p) => p.id == id));
+    _applyFilter();
+  }
+
   Widget _statCard(String label, int count, Color color, Color bg, IconData icon) {
     return Expanded(
       child: Container(
@@ -118,7 +125,13 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacementNamed(context, '/home');
+            }
+          },
         ),
         title: Builder(builder: (ctx) {
           final auth = ctx.watch<AuthProvider>();
@@ -151,15 +164,23 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
+              child: Column(
                 children: [
-                  _statCard('In Stock',    _all.where((p) => p.status == 'in_stock').length,       const Color(0xFF10B981), const Color(0xFFE6F9F2), Icons.check_circle),
-                  const SizedBox(width: 8),
-                  _statCard('Maintenance', _all.where((p) => p.status == 'in_maintenance').length, const Color(0xFFF59E0B), const Color(0xFFFFF8E6), Icons.build),
-                  const SizedBox(width: 8),
-                  _statCard('Critical',    _all.where((p) => p.status == 'critical_issue').length, const Color(0xFFEF4444), const Color(0xFFFFEEEE), Icons.warning_amber),
-                  const SizedBox(width: 8),
-                  _statCard('Retired',     _all.where((p) => p.status == 'retired').length,        const Color(0xFF6B7280), const Color(0xFFF3F4F6), Icons.archive),
+                  Row(children: [
+                    _statCard('Operational', _all.where((p) => p.status == 'operational').length,  const Color(0xFF4F46E5), const Color(0xFFEEF2FF), Icons.check_circle),
+                    const SizedBox(width: 8),
+                    _statCard('In Stock',    _all.where((p) => p.status == 'in_stock').length,     const Color(0xFF10B981), const Color(0xFFE6F9F2), Icons.inventory_2),
+                    const SizedBox(width: 8),
+                    _statCard('Maintenance', _all.where((p) => p.status == 'in_maintenance').length, const Color(0xFFF59E0B), const Color(0xFFFFF8E6), Icons.build),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    _statCard('Critical',    _all.where((p) => p.status == 'critical_issue').length, const Color(0xFFEF4444), const Color(0xFFFFEEEE), Icons.warning_amber),
+                    const SizedBox(width: 8),
+                    _statCard('Retired',     _all.where((p) => p.status == 'retired').length,        const Color(0xFF6B7280), const Color(0xFFF3F4F6), Icons.archive),
+                    const SizedBox(width: 8),
+                    _statCard('Lost',        _all.where((p) => p.status == 'lost').length,           const Color(0xFF8B5CF6), const Color(0xFFF3E8FF), Icons.search_off),
+                  ]),
                 ],
               ),
             ),
@@ -259,8 +280,10 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
                                   product: _filtered[i],
                                   canPlace: auth.canViewMaps,
                                   canChangeStatus: auth.canChangeStatus,
-                                  onStatusChanged:  (s) => _onStatusChanged(_filtered[i], s),
+                                  canDelete: auth.canDeleteProduct,
+                                  onStatusChanged:   (s) => _onStatusChanged(_filtered[i], s),
                                   onLocationChanged: (p) => _onLocationChanged(p),
+                                  onDeleted: () => _removeProduct(_filtered[i].id),
                                 ),
                               ),
                             );
@@ -278,15 +301,19 @@ class _EquipmentRow extends StatefulWidget {
   final Product product;
   final bool canPlace;
   final bool canChangeStatus;
+  final bool canDelete;
   final void Function(String newStatus) onStatusChanged;
   final void Function(Product updated) onLocationChanged;
+  final VoidCallback onDeleted;
 
   const _EquipmentRow({
     required this.product,
     required this.canPlace,
     required this.canChangeStatus,
+    required this.canDelete,
     required this.onStatusChanged,
     required this.onLocationChanged,
+    required this.onDeleted,
   });
 
   @override
@@ -294,13 +321,14 @@ class _EquipmentRow extends StatefulWidget {
 }
 
 class _EquipmentRowState extends State<_EquipmentRow> {
-  static const _labels   = {'in_stock': 'In Stock', 'in_maintenance': 'Maintenance', 'critical_issue': 'Critical', 'retired': 'Retired'};
-  static const _colors   = {'in_stock': Color(0xFF10B981), 'in_maintenance': Color(0xFFF59E0B), 'critical_issue': Color(0xFFEF4444), 'retired': Color(0xFF6B7280)};
-  static const _bgColors = {'in_stock': Color(0xFFE6F9F2), 'in_maintenance': Color(0xFFFFF8E6), 'critical_issue': Color(0xFFFFEEEE), 'retired': Color(0xFFF3F4F6)};
-  static const _icons    = {'in_stock': Icons.check_circle, 'in_maintenance': Icons.build, 'critical_issue': Icons.warning_amber, 'retired': Icons.archive};
+  static const _labels   = {'operational': 'Operational', 'in_stock': 'In Stock', 'in_maintenance': 'Maintenance', 'critical_issue': 'Critical', 'retired': 'Retired', 'lost': 'Lost'};
+  static const _colors   = {'operational': Color(0xFF4F46E5), 'in_stock': Color(0xFF10B981), 'in_maintenance': Color(0xFFF59E0B), 'critical_issue': Color(0xFFEF4444), 'retired': Color(0xFF6B7280), 'lost': Color(0xFF8B5CF6)};
+  static const _bgColors = {'operational': Color(0xFFEEF2FF), 'in_stock': Color(0xFFE6F9F2), 'in_maintenance': Color(0xFFFFF8E6), 'critical_issue': Color(0xFFFFEEEE), 'retired': Color(0xFFF3F4F6), 'lost': Color(0xFFF3E8FF)};
+  static const _icons    = {'operational': Icons.check_circle, 'in_stock': Icons.inventory_2, 'in_maintenance': Icons.build, 'critical_issue': Icons.warning_amber, 'retired': Icons.archive, 'lost': Icons.search_off};
 
   bool _savingStatus   = false;
   bool _savingLocation = false;
+  bool _deleting       = false;
 
   Color _hexColor(String? hex) {
     if (hex == null) return const Color(0xFF6B7280);
@@ -326,6 +354,41 @@ class _EquipmentRowState extends State<_EquipmentRow> {
       messenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _savingStatus = false);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete item?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text('« ${widget.product.name} » will be permanently deleted.',
+            style: const TextStyle(fontSize: 14, color: AppColors.textBody)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await ApiService.deleteProduct(widget.product.id);
+      widget.onDeleted();
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+        setState(() => _deleting = false);
+      }
     }
   }
 
@@ -495,6 +558,31 @@ class _EquipmentRowState extends State<_EquipmentRow> {
                           ),
                   ),
                 ],
+                if (widget.canDelete) ...[
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: (_deleting) ? null : _confirmDelete,
+                    child: _deleting
+                        ? const SizedBox(width: 22, height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+                        : Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEEEE),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.delete_outline, size: 11, color: Colors.red),
+                                SizedBox(width: 3),
+                                Text('Delete', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -517,10 +605,12 @@ class _StatusSheet extends StatelessWidget {
   const _StatusSheet({required this.current});
 
   static const _options = [
-    ('in_stock',       'In Stock',       Icons.check_circle,  Color(0xFF10B981), Color(0xFFE6F9F2)),
+    ('operational',    'Operational',    Icons.check_circle,  Color(0xFF4F46E5), Color(0xFFEEF2FF)),
+    ('in_stock',       'In Stock',       Icons.inventory_2,   Color(0xFF10B981), Color(0xFFE6F9F2)),
     ('in_maintenance', 'In Maintenance', Icons.build,         Color(0xFFF59E0B), Color(0xFFFFF8E6)),
     ('critical_issue', 'Critical Issue', Icons.warning_amber, Color(0xFFEF4444), Color(0xFFFFEEEE)),
     ('retired',        'Retired',        Icons.archive,       Color(0xFF6B7280), Color(0xFFF3F4F6)),
+    ('lost',           'Lost',           Icons.search_off,    Color(0xFF8B5CF6), Color(0xFFF3E8FF)),
   ];
 
   @override

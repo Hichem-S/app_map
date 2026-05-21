@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/download_helper.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://172.20.10.6:3000/api';
+  static const String baseUrl = 'http://192.168.31.23:3000/api';
 
   static final _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -219,7 +219,8 @@ class ApiService {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/users'),
       headers: await _authHeaders(),
-      body: jsonEncode({'name': name, 'email': email, 'password': password, 'role': role}),
+      body: jsonEncode(
+          {'name': name, 'email': email, 'password': password, 'role': role}),
     );
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
@@ -493,6 +494,9 @@ class ApiService {
     double? price,
     String? storageLocation,
     String? roomId,
+    bool setRoom = false,
+    String? rfidTag,
+    bool setRfid = false, // when true, always sends rfid_tag (null → '' to clear)
     XFile? photo,
     Uint8List? photoBytes,
     Map<String, dynamic>? specifications,
@@ -512,7 +516,16 @@ class ApiService {
     if (price != null) request.fields['price'] = price.toString();
     if (storageLocation != null)
       request.fields['storage_location'] = storageLocation;
-    if (roomId != null) request.fields['room_id'] = roomId;
+    if (setRoom) {
+      request.fields['room_id'] = roomId ?? '';
+    } else if (roomId != null) {
+      request.fields['room_id'] = roomId;
+    }
+    if (setRfid) {
+      request.fields['rfid_tag'] = rfidTag ?? '';
+    } else if (rfidTag != null) {
+      request.fields['rfid_tag'] = rfidTag;
+    }
     if (specifications != null && specifications.isNotEmpty) {
       request.fields['specifications'] = jsonEncode(specifications);
     }
