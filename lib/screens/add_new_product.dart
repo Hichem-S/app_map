@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -7,8 +7,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/image_picker_helper.dart';
+import 'import_products_screen.dart';
 
-// ─── Spec field definition ────────────────────────────────────────────────────
+// â”€â”€â”€ Spec field definition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SpecField {
   final String key;
@@ -71,7 +72,7 @@ const Map<String, List<_SpecField>> _typeSpecs = {
   ],
 };
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AddNewProductScreen extends StatefulWidget {
   const AddNewProductScreen({super.key});
@@ -112,9 +113,14 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   String? _selectedRoomId;
   bool _stockRoomLoading = true;
 
+  // Warranty & lifecycle
+  DateTime? _purchaseDate;
+  DateTime? _warrantyExpiry;
+  DateTime? _endOfLifeDate;
+
   static const _gradientColors = [Color(0xFF4F46E5), Color(0xFF7C3AED)];
 
-  // ─── Lifecycle ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   void initState() {
@@ -142,7 +148,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     super.dispose();
   }
 
-  // ─── Category / spec helpers ─────────────────────────────────────────────────
+  // â”€â”€â”€ Category / spec helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _loadCategories() async {
     try {
@@ -208,7 +214,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     return specs;
   }
 
-  // ─── Barcode scan picker ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Barcode scan picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _scanBarcodeForField() async {
     final result = await showModalBottomSheet<String>(
@@ -224,7 +230,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     }
   }
 
-  // ─── Barcode lookup ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Barcode lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _onBarcodeChanged() {
     final barcode = _barcodeController.text.trim();
@@ -271,7 +277,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     setState(() => _barcodeDismissed = true);
   }
 
-  // ─── Image ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Image â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _pickImage(ImageSource source) async {
     debugPrint('[ADD_PRODUCT] _pickImage called source=$source');
@@ -289,7 +295,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     }
   }
 
-  // ─── Submit ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _submit() async {
     final name = _itemNameController.text.trim();
@@ -320,6 +326,9 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
         photo:           _pickedXFile,
         photoBytes:      _imageBytes,
         specifications:  specs.isEmpty ? null : specs,
+        purchaseDate:    _purchaseDate,
+        warrantyExpiry:  _warrantyExpiry,
+        endOfLifeDate:   _endOfLifeDate,
       );
 
       if (!mounted) return;
@@ -337,7 +346,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     }
   }
 
-  // ─── Dialogs / snack ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Dialogs / snack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showSuccessDialog(Map product) {
     final photoUrl = product['photo_url'] as String?;
@@ -423,7 +432,66 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  // ─── UI helpers ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Warranty date row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  Widget _buildWarrantyDateRow({
+    required String label,
+    required DateTime? date,
+    required void Function(DateTime) onPick,
+    required VoidCallback onClear,
+  }) {
+    final hasDate = date != null;
+    final formatted = hasDate
+        ? '${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}'
+        : 'Not set';
+
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2040),
+          builder: (ctx, child) => Theme(
+            data: Theme.of(ctx).copyWith(
+              colorScheme: const ColorScheme.light(primary: Color(0xFF4F46E5)),
+            ),
+            child: child!,
+          ),
+        );
+        if (picked != null) onPick(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: hasDate ? const Color(0xFF4F46E5).withOpacity(0.05) : const Color(0xFFF5F6FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasDate ? const Color(0xFF4F46E5).withOpacity(0.35) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(children: [
+          Icon(Icons.calendar_today_outlined, size: 16,
+              color: hasDate ? const Color(0xFF4F46E5) : const Color(0xFF9090A0)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 11,
+                color: Color(0xFF9090A0), fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text(formatted, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                color: hasDate ? const Color(0xFF4F46E5) : const Color(0xFFCBD5E1))),
+          ])),
+          if (hasDate)
+            GestureDetector(
+              onTap: onClear,
+              child: const Icon(Icons.close, size: 16, color: Color(0xFF9090A0)),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  // â”€â”€â”€ UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSectionHeader(String title, IconData icon) {
     return Container(
@@ -493,7 +561,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     );
   }
 
-  // ─── Barcode match banner ────────────────────────────────────────────────────
+  // â”€â”€â”€ Barcode match banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildBarcodeBanner() {
     if (_barcodeDismissed || _barcodeController.text.trim().isEmpty) {
@@ -572,7 +640,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     );
   }
 
-  // ─── Dynamic spec fields ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Dynamic spec fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSpecSection() {
     final fields = _currentSpecFields;
@@ -612,7 +680,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   }
 
 
-  // ─── Build ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -622,7 +690,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
         children: [
           // Top bar
           Container(
-            color: Colors.white,
+            color: AppColors.card(context),
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -650,6 +718,27 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                       ],
                     ),
                   ),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ImportProductsScreen()),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F46E5).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF4F46E5).withOpacity(0.25)),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF4F46E5)),
+                        SizedBox(width: 5),
+                        Text('Import CSV',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                color: Color(0xFF4F46E5))),
+                      ]),
+                    ),
+                  ),
                 ]),
               ),
             ),
@@ -662,7 +751,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Basic Information ──────────────────────────────────────
+                  // â”€â”€ Basic Information â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   _buildSectionHeader('Basic Information', Icons.inventory_2_outlined),
                   const SizedBox(height: 20),
 
@@ -676,7 +765,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.card(context),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: const Color(0xFF4F46E5), width: 1.5),
                       ),
@@ -864,12 +953,12 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   const Text('Separate tags with commas',
                       style: TextStyle(fontSize: 11, color: Color(0xFF9090A0))),
 
-                  // ── Dynamic Specification Fields ───────────────────────────
+                  // â”€â”€ Dynamic Specification Fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   _buildSpecSection(),
 
                   const SizedBox(height: 28),
 
-                  // ── Inventory & Pricing ────────────────────────────────────
+                  // â”€â”€ Inventory & Pricing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   _buildSectionHeader('Inventory & Pricing', Icons.attach_money),
                   const SizedBox(height: 20),
 
@@ -909,7 +998,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                   ]),
                   const SizedBox(height: 28),
 
-                  // ── Storage Location (auto: ADM Stock room) ───────────────
+                  // â”€â”€ Storage Location (auto: ADM Stock room) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   _buildSectionHeader('Storage Location', Icons.location_on_outlined),
                   const SizedBox(height: 16),
 
@@ -955,6 +1044,32 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 28),
+
+                  // â”€â”€ Warranty & Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                  _buildSectionHeader('Warranty & Lifecycle', Icons.verified_outlined),
+                  const SizedBox(height: 20),
+                  _buildWarrantyDateRow(
+                    label: 'Purchase Date',
+                    date: _purchaseDate,
+                    onPick: (d) => setState(() => _purchaseDate = d),
+                    onClear: () => setState(() => _purchaseDate = null),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildWarrantyDateRow(
+                    label: 'Warranty Expiry',
+                    date: _warrantyExpiry,
+                    onPick: (d) => setState(() => _warrantyExpiry = d),
+                    onClear: () => setState(() => _warrantyExpiry = null),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildWarrantyDateRow(
+                    label: 'End of Life',
+                    date: _endOfLifeDate,
+                    onPick: (d) => setState(() => _endOfLifeDate = d),
+                    onClear: () => setState(() => _endOfLifeDate = null),
+                  ),
+
                   const SizedBox(height: 36),
 
                   // Submit
@@ -991,7 +1106,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
     );
   }
 
-  // ─── Bottom sheet ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Bottom sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showImageSourceSheet() {
     showModalBottomSheet(
@@ -1042,7 +1157,7 @@ class _AddNewProductScreenState extends State<AddNewProductScreen> {
   }
 }
 
-// ─── Barcode scan bottom sheet ────────────────────────────────────────────────
+// â”€â”€â”€ Barcode scan bottom sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _BarcodeScanSheet extends StatefulWidget {
   const _BarcodeScanSheet();
@@ -1116,3 +1231,5 @@ class _BarcodeScanSheetState extends State<_BarcodeScanSheet> {
     );
   }
 }
+
+

@@ -106,4 +106,16 @@ class AppColors {
   static List<BoxShadow> shadowColored(Color c) => [
     BoxShadow(color: c.withOpacity(0.28), blurRadius: 14, offset: const Offset(0, 4)),
   ];
+
+  // ── Context-aware helpers (dark mode) ─────────────────────────────────────
+  static bool _dark(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark;
+
+  static Color bg(BuildContext ctx)     => _dark(ctx) ? darkBg      : bgPage;
+  static Color card(BuildContext ctx)   => _dark(ctx) ? darkSurface  : bgCard;
+  static Color muted(BuildContext ctx)  => _dark(ctx) ? const Color(0xFF263148) : bgMuted;
+  static Color divider(BuildContext ctx)=> _dark(ctx) ? darkBorder   : border;
+  static Color tH(BuildContext ctx)     => _dark(ctx) ? Colors.white                : textH;
+  static Color tBody(BuildContext ctx)  => _dark(ctx) ? const Color(0xFFCBD5E1)     : textBody;
+  static Color tMuted(BuildContext ctx) => _dark(ctx) ? const Color(0xFF64748B)     : textMuted;
 }

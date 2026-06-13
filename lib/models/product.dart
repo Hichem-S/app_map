@@ -27,6 +27,10 @@ class Product {
   final String? departmentName;
   final String? departmentColor;
   final String? rfidTag;
+  final String? bleDevice;
+  final DateTime? purchaseDate;
+  final DateTime? warrantyExpiry;
+  final DateTime? endOfLifeDate;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -56,6 +60,10 @@ class Product {
     this.departmentName,
     this.departmentColor,
     this.rfidTag,
+    this.bleDevice,
+    this.purchaseDate,
+    this.warrantyExpiry,
+    this.endOfLifeDate,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -94,6 +102,10 @@ class Product {
       departmentName:  json['department_name'],
       departmentColor: json['department_color'],
       rfidTag:         json['rfid_tag'],
+      bleDevice:       json['ble_device'],
+      purchaseDate:    json['purchase_date']    != null ? DateTime.tryParse(json['purchase_date'])    : null,
+      warrantyExpiry:  json['warranty_expiry']  != null ? DateTime.tryParse(json['warranty_expiry'])  : null,
+      endOfLifeDate:   json['end_of_life_date'] != null ? DateTime.tryParse(json['end_of_life_date']) : null,
       specifications: json['specifications'] is Map
           ? Map<String, dynamic>.from(json['specifications'] as Map)
           : const {},
@@ -128,6 +140,10 @@ class Product {
     Object? departmentName = _sentinel,
     Object? departmentColor = _sentinel,
     Object? rfidTag = _sentinel,
+    Object? bleDevice = _sentinel,
+    Object? purchaseDate = _sentinel,
+    Object? warrantyExpiry = _sentinel,
+    Object? endOfLifeDate = _sentinel,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -157,6 +173,10 @@ class Product {
       departmentName:  departmentName  == _sentinel ? this.departmentName  : departmentName  as String?,
       departmentColor: departmentColor == _sentinel ? this.departmentColor : departmentColor as String?,
       rfidTag:         rfidTag         == _sentinel ? this.rfidTag         : rfidTag         as String?,
+      bleDevice:       bleDevice       == _sentinel ? this.bleDevice       : bleDevice       as String?,
+      purchaseDate:    purchaseDate    == _sentinel ? this.purchaseDate    : purchaseDate    as DateTime?,
+      warrantyExpiry:  warrantyExpiry  == _sentinel ? this.warrantyExpiry  : warrantyExpiry  as DateTime?,
+      endOfLifeDate:   endOfLifeDate   == _sentinel ? this.endOfLifeDate   : endOfLifeDate   as DateTime?,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

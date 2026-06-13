@@ -4,6 +4,7 @@ class AppNotification {
   final String type;
   final String title;
   final String body;
+  final String? productId;
   final String? productName;
   final String? fromRoom;
   final String? toRoom;
@@ -16,6 +17,7 @@ class AppNotification {
     required this.type,
     required this.title,
     required this.body,
+    this.productId,
     this.productName,
     this.fromRoom,
     this.toRoom,
@@ -29,6 +31,7 @@ class AppNotification {
         type:        j['type'] as String? ?? 'product_moved',
         title:       j['title'] as String? ?? 'Notification',
         body:        j['body'] as String? ?? '',
+        productId:   j['product_id'] as String?,
         productName: j['product_name'] as String?,
         fromRoom:    j['from_room'] as String?,
         toRoom:      j['to_room'] as String?,

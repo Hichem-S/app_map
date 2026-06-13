@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/webview_init.dart';
 import 'providers/theme_provider.dart';
 import 'providers/auth_provider.dart';
@@ -24,43 +26,89 @@ import 'screens/reset_password_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/admin_users_screen.dart';
 import 'screens/move_log_screen.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/tracker_screen.dart';
-import 'tracker/accessory_registry.dart';
-import 'tracker/location_model.dart';
+import 'screens/rfid_screen.dart';
+import 'screens/ble_screen.dart';
+import 'screens/iot_live_feed_screen.dart';
+import 'screens/chat_list_screen.dart';
+import 'screens/ai_query_screen.dart';
+import 'screens/maintenance_screen.dart';
+import 'screens/analytics_screen.dart';
+import 'screens/import_products_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/rfid_scan_history_screen.dart';
+import 'screens/tracker_management_screen.dart';
+import 'screens/ble_proximity_screen.dart';
+import 'providers/language_provider.dart';
+import 'tracker/accessory/accessory_registry.dart';
+import 'tracker/location/location_model.dart';
+import 'tracker/preferences/user_preferences_model.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Settings.init();
+  initializeDateFormatting();
   initWebViewPlatform();
+  final prefs = await SharedPreferences.getInstance();
+  final onboardingDone = prefs.getBool('onboarding_done') ?? false;
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AccessoryRegistry()),
-        ChangeNotifierProvider(create: (_) => TrackerLocationModel()),
+        ChangeNotifierProvider(create: (_) => LocationModel()),
+        ChangeNotifierProvider(create: (_) => UserPreferences()),
       ],
-      child: const MyApp(),
+      child: MyApp(onboardingDone: onboardingDone),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final bool onboardingDone;
+  const MyApp({Key? key, required this.onboardingDone}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
+    return Consumer2<ThemeProvider, LanguageProvider>(
+      builder: (context, themeProvider, langProvider, child) {
         return MaterialApp(
           title: 'Smart Inventory',
           debugShowCheckedModeBanner: false,
           theme: themeProvider.currentTheme,
-          initialRoute: '/login',
+          locale: langProvider.locale,
+          supportedLocales: const [
+            Locale('en'),
+            Locale('fr'),
+            Locale('ar'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (ctx, child) => Directionality(
+            textDirection: langProvider.isArabic
+                ? TextDirection.rtl
+                : TextDirection.ltr,
+            child: child!,
+          ),
+          initialRoute: onboardingDone ? '/login' : '/onboarding',
           routes: {
             '/login': (context) => const LoginScreen(),
             '/signup': (context) => const SignupScreen(),
             '/home': (context) => const HomeScreen(),
             '/qrscanner': (context) => const QRScannerScreen(),
+            '/rfidscanner': (context) => const RfidScreen(),
+            '/iot-feed':    (context) => const IotLiveFeedScreen(),
+            '/chat':        (context) => const ChatListScreen(),
+            '/ai':          (context) => const AiQueryScreen(),
+            '/maintenance': (context) => const MaintenanceScreen(),
+            '/blescanner': (context) => const BleScreen(),
             '/addproduct': (context) => const RoleGuard(
                   roles: ['magazinier'],
                   child: add_product.AddNewProductScreen(),
@@ -101,9 +149,18 @@ class MyApp extends StatelessWidget {
                   roles: ['admin', 'technicien'],
                   child: TrackerScreen(),
                 ),
-            '/forgot-password': (context) => const ForgotPasswordScreen(),
-            '/reset-password':  (context) => const ResetPasswordScreen(),
-            '/verify-email':    (context) => const VerifyEmailScreen(),
+            '/onboarding':       (context) => const OnboardingScreen(),
+            '/analytics':        (context) => const AnalyticsScreen(),
+            '/import-products':  (context) => const RoleGuard(
+                  roles: ['admin', 'technicien'],
+                  child: ImportProductsScreen(),
+                ),
+            '/forgot-password':    (context) => const ForgotPasswordScreen(),
+            '/reset-password':     (context) => const ResetPasswordScreen(),
+            '/verify-email':       (context) => const VerifyEmailScreen(),
+            '/rfid-scan-history':    (context) => const RfidScanHistoryScreen(),
+            '/tracker-management':   (context) => const TrackerManagementScreen(),
+            '/ble-proximity':        (context) => const BleProximityScreen(),
           },
         );
       },

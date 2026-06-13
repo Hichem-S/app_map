@@ -11,6 +11,8 @@ import '../services/api_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/image_picker_helper.dart';
 import 'nfc_scan_screen.dart';
+import 'ble_select_screen.dart';
+import 'maintenance_screen.dart';
 
 // Status display config
 const _statusLabels  = {'operational': 'Operational', 'in_stock': 'In Stock', 'in_maintenance': 'In Maintenance', 'critical_issue': 'Critical Issue', 'retired': 'Retired', 'lost': 'Lost'};
@@ -20,7 +22,8 @@ const _statusIcons   = {'operational': Icons.check_circle, 'in_stock': Icons.inv
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
-  const ProductDetailScreen({super.key, required this.product});
+  final bool initiallyEditing;
+  const ProductDetailScreen({super.key, required this.product, this.initiallyEditing = false});
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -45,6 +48,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   XFile?  _pickedPhoto;
   Uint8List? _photoBytes;
   String? _editRfidTag;
+  String? _editBleDevice;
+  DateTime? _editPurchaseDate;
+  DateTime? _editWarrantyExpiry;
+  DateTime? _editEndOfLife;
 
   final String _baseHost = ApiService.baseUrl.replaceAll('/api', '');
 
@@ -58,6 +65,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _priceCtrl    = TextEditingController();
     _barcodeCtrl  = TextEditingController();
     _tagsCtrl     = TextEditingController();
+    if (widget.initiallyEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startEdit();
+      });
+    }
   }
 
   @override
@@ -82,7 +94,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _editStatus   = _product.status;
     _editRoomId   = _product.roomId;
     _editRoomName = _product.roomName;
-    _editRfidTag  = _product.rfidTag;
+    _editRfidTag       = _product.rfidTag;
+    _editBleDevice     = _product.bleDevice;
+    _editPurchaseDate  = _product.purchaseDate;
+    _editWarrantyExpiry = _product.warrantyExpiry;
+    _editEndOfLife     = _product.endOfLifeDate;
     _pickedPhoto  = null;
     _photoBytes   = null;
 
@@ -124,21 +140,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
       final res = await ApiService.updateProduct(
         _product.id,
-        name:           name,
-        sku:            _product.sku,
-        type:           _product.type,
-        description:    _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        quantity:       int.tryParse(_quantityCtrl.text) ?? _product.quantity,
-        price:          double.tryParse(_priceCtrl.text),
-        barcode:        _barcodeCtrl.text.trim().isEmpty ? null : _barcodeCtrl.text.trim(),
-        tags:           tags,
-        specifications: specs,
-        roomId:         _editRoomId,
-        setRoom:        true,
-        rfidTag:        _editRfidTag,
-        setRfid:        true,
-        photo:          _pickedPhoto,
-        photoBytes:     _photoBytes,
+        name:            name,
+        sku:             _product.sku,
+        type:            _product.type,
+        description:     _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        quantity:        int.tryParse(_quantityCtrl.text) ?? _product.quantity,
+        price:           double.tryParse(_priceCtrl.text),
+        barcode:         _barcodeCtrl.text.trim().isEmpty ? null : _barcodeCtrl.text.trim(),
+        tags:            tags,
+        specifications:  specs,
+        roomId:          _editRoomId,
+        setRoom:         true,
+        rfidTag:         _editRfidTag,
+        setRfid:         true,
+        bleDevice:       _editBleDevice,
+        setBle:          true,
+        photo:           _pickedPhoto,
+        photoBytes:      _photoBytes,
+        purchaseDate:    _editPurchaseDate,
+        warrantyExpiry:  _editWarrantyExpiry,
+        endOfLifeDate:   _editEndOfLife,
       );
 
       if (!mounted) return;
@@ -244,9 +265,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final canEdit = auth.canEditProduct;
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.card(context),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
@@ -307,6 +328,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             const SizedBox(height: 12),
             _buildStatusRow(),
             const SizedBox(height: 12),
+            _HealthScoreCard(productId: _product.id),
+            const SizedBox(height: 12),
             _buildInfoCard(),
             const SizedBox(height: 12),
             if (_editing || (_product.description?.isNotEmpty == true))
@@ -325,9 +348,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               _buildBarcodeCard(),
             if (_editing || _product.barcode != null)
               const SizedBox(height: 12),
+            _buildWarrantyCard(),
+            const SizedBox(height: 12),
             _buildTimestampCard(),
             const SizedBox(height: 12),
             _buildRfidCard(),
+            const SizedBox(height: 12),
+            _buildBleCard(),
+            const SizedBox(height: 12),
+            _ActivityFeedCard(productId: _product.id),
+            const SizedBox(height: 12),
+            _MaintenanceHistoryCard(productId: _product.id),
             const SizedBox(height: 24),
           ],
         ),
@@ -700,6 +731,97 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  // ─── Warranty & Lifecycle ─────────────────────────────────────────────────────
+
+  Widget _buildWarrantyCard() {
+    final purchaseDate   = _editing ? _editPurchaseDate   : _product.purchaseDate;
+    final warrantyExpiry = _editing ? _editWarrantyExpiry : _product.warrantyExpiry;
+    final endOfLife      = _editing ? _editEndOfLife      : _product.endOfLifeDate;
+
+    final now = DateTime.now();
+    String? warrantyBadge;
+    Color   badgeColor = const Color(0xFF22C55E);
+    if (warrantyExpiry != null) {
+      if (warrantyExpiry.isBefore(now)) {
+        warrantyBadge = 'Expired';
+        badgeColor    = const Color(0xFFEF4444);
+      } else if (warrantyExpiry.difference(now).inDays <= 30) {
+        warrantyBadge = 'Expiring Soon';
+        badgeColor    = const Color(0xFFF59E0B);
+      }
+    }
+
+    return _card(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF6D28D9).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.verified_outlined, size: 18, color: Color(0xFF6D28D9)),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Warranty & Lifecycle',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textH))),
+          if (warrantyBadge != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(warrantyBadge,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: badgeColor)),
+            ),
+        ]),
+        const SizedBox(height: 12),
+        _warrantyRow('Purchase Date',    purchaseDate,   'purchase_date',   (d) => setState(() => _editPurchaseDate   = d)),
+        const SizedBox(height: 8),
+        _warrantyRow('Warranty Expiry',  warrantyExpiry, 'warranty_expiry', (d) => setState(() => _editWarrantyExpiry = d)),
+        const SizedBox(height: 8),
+        _warrantyRow('End of Life',      endOfLife,      'end_of_life_date',(d) => setState(() => _editEndOfLife      = d)),
+      ]),
+    );
+  }
+
+  Widget _warrantyRow(String label, DateTime? date, String field, void Function(DateTime?) onPick) {
+    final formatted = date != null
+        ? '${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}'
+        : (_editing ? 'Tap to set' : '—');
+    return Row(children: [
+      SizedBox(width: 130, child: Text(label,
+          style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
+      Expanded(child: GestureDetector(
+        onTap: _editing ? () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: date ?? DateTime.now(),
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2040),
+          );
+          onPick(picked);
+        } : null,
+        child: Row(children: [
+          Text(formatted, style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w600,
+            color: _editing ? AppColors.primary : AppColors.textH,
+          )),
+          if (_editing && date != null) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => onPick(null),
+              child: const Icon(Icons.close, size: 14, color: AppColors.textMuted),
+            ),
+          ],
+          if (_editing) const SizedBox(width: 4),
+          if (_editing) const Icon(Icons.edit_calendar_outlined, size: 14, color: AppColors.primary),
+        ]),
+      )),
+    ]);
+  }
+
   // ─── Timestamps ───────────────────────────────────────────────────────────────
 
   Widget _buildTimestampCard() {
@@ -872,6 +994,156 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  Widget _buildBleCard() {
+    const bleColor  = Color(0xFF2563EB);
+    const bleBg     = Color(0xFFEFF6FF);
+    final tag   = _editing ? _editBleDevice : _product.bleDevice;
+    final hasTag = tag != null && tag.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasTag ? bleColor.withValues(alpha: 0.35) : AppColors.border,
+        ),
+        boxShadow: AppColors.shadowMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: hasTag ? bleBg : AppColors.bgMuted,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.bluetooth_rounded,
+                      color: hasTag ? bleColor : AppColors.textMuted, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('BLE Device',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textH)),
+                      Text(
+                        hasTag ? 'Device linked' : 'No device linked',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: hasTag ? bleColor : AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasTag)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: bleBg,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, color: bleColor, size: 12),
+                        SizedBox(width: 4),
+                        Text('Active',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: bleColor,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // MAC address display
+          if (hasTag)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: bleBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: bleColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tag, size: 14, color: bleColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tag,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: bleColor,
+                          letterSpacing: 0.5),
+                    ),
+                  ),
+                  if (_editing)
+                    GestureDetector(
+                      onTap: () => setState(() => _editBleDevice = null),
+                      child: const Icon(Icons.close, size: 16, color: bleColor),
+                    ),
+                ],
+              ),
+            ),
+
+          // Assign / Change button (edit mode only)
+          if (_editing)
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, hasTag ? 0 : 4, 16, 14),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showBleDialog,
+                  icon: Icon(
+                    hasTag ? Icons.edit_outlined : Icons.add_circle_outline,
+                    size: 18,
+                    color: bleColor,
+                  ),
+                  label: Text(
+                    hasTag ? 'Change BLE Device' : 'Link BLE Device',
+                    style: const TextStyle(
+                        color: bleColor, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: bleColor),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ),
+
+          if (!_editing && !hasTag)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Text(
+                'No BLE device has been linked to this item.',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showRfidDialog() async {
     final uid = await Navigator.push<String>(
       context,
@@ -881,13 +1153,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _editRfidTag = uid.isEmpty ? null : uid);
   }
 
+  Future<void> _showBleDialog() async {
+    final mac = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BleSelectScreen()),
+    );
+    if (mac == null || !mounted) return;
+    setState(() => _editBleDevice = mac.isEmpty ? null : mac);
+  }
+
   // ─── Shared helpers ───────────────────────────────────────────────────────────
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(14),
           boxShadow: AppColors.shadowMd,
         ),
@@ -925,6 +1206,100 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String _formatDate(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+// ─── Health score card ────────────────────────────────────────────────────────
+
+class _HealthScoreCard extends StatefulWidget {
+  final String productId;
+  const _HealthScoreCard({required this.productId});
+  @override
+  State<_HealthScoreCard> createState() => _HealthScoreCardState();
+}
+
+class _HealthScoreCardState extends State<_HealthScoreCard> {
+  Map<String, dynamic>? _health;
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final h = await ApiService.getProductHealth(widget.productId);
+    if (mounted) setState(() { _health = h; _loading = false; });
+  }
+
+  Color get _color {
+    final s = _health?['score'] as int? ?? 0;
+    if (s >= 80) return const Color(0xFF22C55E);
+    if (s >= 60) return const Color(0xFF84CC16);
+    if (s >= 40) return const Color(0xFFF59E0B);
+    if (s >= 20) return const Color(0xFFEF4444);
+    return const Color(0xFF7F1D1D);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox.shrink();
+    if (_health == null) return const SizedBox.shrink();
+
+    final score   = _health!['score']   as int;
+    final label   = _health!['label']   as String;
+    final reasons = (_health!['reasons'] as List).cast<String>();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppColors.shadowMd,
+        border: Border.all(color: _color.withOpacity(0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.health_and_safety_rounded, size: 20, color: _color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Health Score', style: TextStyle(fontSize: 13,
+                fontWeight: FontWeight.w700, color: AppColors.textH)),
+            Text(label, style: TextStyle(fontSize: 11, color: _color, fontWeight: FontWeight.w600)),
+          ])),
+          Text('$score', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _color)),
+          Text('/100', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+        ]),
+        const SizedBox(height: 12),
+        // Progress bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: score / 100,
+            minHeight: 8,
+            backgroundColor: AppColors.border,
+            valueColor: AlwaysStoppedAnimation<Color>(_color),
+          ),
+        ),
+        if (reasons.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ...reasons.map((r) => Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(children: [
+              Icon(Icons.remove_circle_outline_rounded, size: 12, color: _color),
+              const SizedBox(width: 5),
+              Text(r, style: TextStyle(fontSize: 11, color: AppColors.tBody(context))),
+            ]),
+          )),
+        ],
+      ]),
+    );
   }
 }
 
@@ -1151,6 +1526,360 @@ class _LocationSheetState extends State<_LocationSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Activity feed card ────────────────────────────────────────────────────────
+
+class _ActivityFeedCard extends StatefulWidget {
+  final String productId;
+  const _ActivityFeedCard({required this.productId});
+  @override
+  State<_ActivityFeedCard> createState() => _ActivityFeedCardState();
+}
+
+class _ActivityFeedCardState extends State<_ActivityFeedCard> {
+  List<dynamic> _events = [];
+  bool _loading   = true;
+  bool _expanded  = false;
+
+  static const _typeIcon = {
+    'scan':           Icons.qr_code_scanner_rounded,
+    'product_added':  Icons.add_circle_outline_rounded,
+    'moved':          Icons.swap_horiz_rounded,
+    'status_changed': Icons.change_circle_outlined,
+    'maintenance':    Icons.build_rounded,
+    'dept_qr':        Icons.domain_outlined,
+  };
+  static const _typeColor = {
+    'scan':           Color(0xFF4F46E5),
+    'product_added':  Color(0xFF22C55E),
+    'moved':          Color(0xFF0EA5E9),
+    'status_changed': Color(0xFFF59E0B),
+    'maintenance':    Color(0xFFEF4444),
+    'dept_qr':        Color(0xFF8B5CF6),
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final events = await ApiService.getProductActivity(widget.productId);
+      if (mounted) setState(() { _events = events; _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
+  String _timeAgo(String raw) {
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1)  return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24)   return '${diff.inHours}h ago';
+    if (diff.inDays < 30)    return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = _expanded ? _events : _events.take(4).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider(context)),
+        boxShadow: AppColors.shadowMd,
+      ),
+      child: Column(children: [
+        // Header
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.timeline_rounded, size: 18, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Activity Feed', style: TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w700, color: AppColors.textH)),
+                if (!_loading)
+                  Text('${_events.length} event${_events.length == 1 ? '' : 's'}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ])),
+              Icon(_expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.textMuted),
+            ]),
+          ),
+        ),
+        if (_expanded || (!_loading && _events.isNotEmpty)) ...[
+          Divider(height: 1, color: AppColors.divider(context)),
+          if (_loading)
+            const Padding(padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator(
+                  color: AppColors.primary, strokeWidth: 2)))
+          else if (_events.isEmpty)
+            const Padding(padding: EdgeInsets.all(16),
+              child: Text('No activity recorded yet.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted)))
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: shown.length,
+              separatorBuilder: (_, __) => const SizedBox.shrink(),
+              itemBuilder: (_, i) {
+                final e     = shown[i];
+                final type  = e['type'] as String? ?? 'scan';
+                final label = e['label'] as String? ?? type;
+                final at    = e['at']   as String? ?? '';
+                final user  = e['userName'] as String?;
+                final detail = e['detail'] as Map? ?? {};
+                final color  = _typeColor[type] ?? AppColors.primary;
+                final icon   = _typeIcon[type]  ?? Icons.circle_outlined;
+                final isLast = i == shown.length - 1;
+
+                String? subtitle;
+                if (type == 'moved') {
+                  final from = detail['from_room'] as String?;
+                  final to   = detail['to_room']   as String?;
+                  if (from != null || to != null)
+                    subtitle = '${from ?? '—'} → ${to ?? '—'}';
+                } else if (type == 'status_changed') {
+                  final old = detail['old_status'] as String?;
+                  final nw  = detail['new_status'] as String?;
+                  if (old != null && nw != null)
+                    subtitle = '${old.replaceAll('_',' ')} → ${nw.replaceAll('_',' ')}';
+                } else if (type == 'maintenance') {
+                  subtitle = (detail['status'] as String?)?.replaceAll('_', ' ');
+                }
+
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(16, 6, 16, isLast ? 6 : 0),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Column(children: [
+                      Container(
+                        width: 28, height: 28,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, size: 14, color: color),
+                      ),
+                      if (!isLast)
+                        Container(width: 1.5, height: 20,
+                            color: AppColors.border.withOpacity(0.5)),
+                    ]),
+                    const SizedBox(width: 10),
+                    Expanded(child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Expanded(child: Text(label, style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600,
+                              color: AppColors.tH(context)))),
+                          Text(_timeAgo(at), style: const TextStyle(
+                              fontSize: 10, color: AppColors.textMuted)),
+                        ]),
+                        if (subtitle != null)
+                          Text(subtitle, style: const TextStyle(
+                              fontSize: 11, color: AppColors.textMuted)),
+                        if (user != null)
+                          Text('by $user', style: const TextStyle(
+                              fontSize: 10, color: AppColors.textMuted)),
+                      ]),
+                    )),
+                  ]),
+                );
+              },
+            ),
+          if (!_loading && _events.length > 4)
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Center(child: Text(
+                  _expanded ? 'Show less' : 'Show all ${_events.length} events',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: AppColors.primary),
+                )),
+              ),
+            ),
+        ],
+      ]),
+    );
+  }
+}
+
+// ── Maintenance history card ───────────────────────────────────────────────────
+
+class _MaintenanceHistoryCard extends StatefulWidget {
+  final String productId;
+  const _MaintenanceHistoryCard({required this.productId});
+
+  @override
+  State<_MaintenanceHistoryCard> createState() => _MaintenanceHistoryCardState();
+}
+
+class _MaintenanceHistoryCardState extends State<_MaintenanceHistoryCard> {
+  List<MaintenanceTask> _tasks = [];
+  bool _loading  = true;
+  bool _expanded = true;
+
+  static const _priorityColor = {
+    'high':   Color(0xFFEF4444),
+    'medium': Color(0xFFF59E0B),
+    'low':    Color(0xFF22C55E),
+  };
+  static const _statusColor = {
+    'scheduled':   Color(0xFF6D28D9),
+    'in_progress': Color(0xFF0EA5E9),
+    'done':        Color(0xFF22C55E),
+    'cancelled':   Color(0xFF94A3B8),
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final res = await ApiService.getMaintenanceTasks(productId: widget.productId);
+      if (!mounted) return;
+      setState(() {
+        _tasks = (res['data'] as List? ?? [])
+            .map((e) => MaintenanceTask.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _loading = false;
+      });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.shadowMd,
+      ),
+      child: Column(children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.build_rounded, size: 18, color: AppColors.error)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Maintenance History', style: TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w700, color: AppColors.textH)),
+                if (!_loading)
+                  Text('${_tasks.length} record${_tasks.length == 1 ? '' : 's'}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ])),
+              Icon(_expanded ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
+            ]),
+          ),
+        ),
+        if (_expanded) ...[
+          const Divider(height: 1, color: AppColors.border),
+          if (_loading)
+            const Padding(padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator(
+                  color: AppColors.primary, strokeWidth: 2)))
+          else if (_tasks.isEmpty)
+            const Padding(padding: EdgeInsets.all(20),
+              child: Row(children: [
+                Icon(Icons.check_circle_outline_rounded, size: 18, color: Color(0xFF22C55E)),
+                SizedBox(width: 8),
+                Text('No maintenance records', style: TextStyle(fontSize: 13,
+                    color: AppColors.textMuted)),
+              ]))
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _tasks.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, indent: 52, color: AppColors.border),
+              itemBuilder: (_, i) => _HistoryRow(
+                task: _tasks[i],
+                priorityColor: _priorityColor,
+                statusColor:   _statusColor,
+              ),
+            ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _HistoryRow extends StatelessWidget {
+  final MaintenanceTask task;
+  final Map<String, Color> priorityColor;
+  final Map<String, Color> statusColor;
+  const _HistoryRow({required this.task, required this.priorityColor, required this.statusColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final pColor  = priorityColor[task.priority] ?? AppColors.textMuted;
+    final sColor  = statusColor[task.status]     ?? AppColors.textMuted;
+    final rawDate = task.completedAt ?? task.scheduledDate ?? task.createdAt;
+    final dateStr = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(children: [
+        Container(width: 10, height: 10,
+            decoration: BoxDecoration(color: pColor, shape: BoxShape.circle)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: AppColors.textH))),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(color: sColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text(task.status.replaceAll('_', ' '),
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: sColor)),
+            ),
+          ]),
+          const SizedBox(height: 3),
+          Row(children: [
+            if (task.assignedTo != null) ...[
+              const Icon(Icons.person_outline_rounded, size: 11, color: AppColors.textMuted),
+              const SizedBox(width: 3),
+              Text(task.assignedTo!['name'] as String? ?? '',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.calendar_today_outlined, size: 11, color: AppColors.textMuted),
+            const SizedBox(width: 3),
+            Text(dateStr, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          ]),
+        ])),
+      ]),
     );
   }
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
@@ -109,9 +109,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.bgPage,
+        backgroundColor: AppColors.bg(context),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
@@ -200,20 +200,26 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(6, (i) => _OtpBox(
-                        controller: _otpControllers[i],
-                        focusNode: _otpFocusNodes[i],
-                        onChanged: (v) => _onOtpChanged(i, v),
-                        onBackspace: i > 0
-                            ? () {
-                                if (_otpControllers[i].text.isEmpty) {
-                                  _otpFocusNodes[i - 1].requestFocus();
-                                  _otpControllers[i - 1].clear();
-                                }
-                              }
-                            : null,
-                      )),
+                      children: [
+                        for (int i = 0; i < 6; i++) ...[
+                          if (i > 0) const SizedBox(width: 8),
+                          Expanded(
+                            child: _OtpBox(
+                              controller: _otpControllers[i],
+                              focusNode: _otpFocusNodes[i],
+                              onChanged: (v) => _onOtpChanged(i, v),
+                              onBackspace: i > 0
+                                  ? () {
+                                      if (_otpControllers[i].text.isEmpty) {
+                                        _otpFocusNodes[i - 1].requestFocus();
+                                        _otpControllers[i - 1].clear();
+                                      }
+                                    }
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 24),
 
@@ -319,7 +325,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 }
 
-// ─── OTP box ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ OTP box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
@@ -337,7 +343,7 @@ class _OtpBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 44, height: 52,
+      height: 52,
       child: RawKeyboardListener(
         focusNode: FocusNode(),
         onKey: (event) {
@@ -379,7 +385,7 @@ class _OtpBox extends StatelessWidget {
   }
 }
 
-// ─── Password field ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Password field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _PasswordField extends StatelessWidget {
   final TextEditingController controller;
@@ -430,3 +436,5 @@ class _PasswordField extends StatelessWidget {
     );
   }
 }
+
+

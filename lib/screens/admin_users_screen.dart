@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
 
@@ -16,7 +16,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   static const _roles = ['admin', 'magazinier', 'technicien'];
 
   static const _roleColors = {
-    'admin':      Color(0xFF6D28D9),   // violet — elevated authority
+    'admin':      Color(0xFF6D28D9),   // violet â€” elevated authority
     'magazinier': AppColors.primary,   // indigo
     'technicien': AppColors.accent,    // sky
     'user':       AppColors.accent,
@@ -103,7 +103,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   void _showRolePicker(Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: AppColors.card(context),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -118,7 +118,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Change role — ${user['name']}',
+            Text('Change role â€” ${user['name']}',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textH)),
             const SizedBox(height: 16),
             ..._roles.map((r) {
@@ -177,7 +177,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(gradient: AppColors.gradHeader),
@@ -251,7 +251,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: AppColors.card(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
@@ -482,110 +482,128 @@ class _UserCard extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         boxShadow: AppColors.shadowSm,
       ),
-      child: Row(children: [
-        // Avatar
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: color.withOpacity(0.15),
-          backgroundImage: avatar != null && avatar.isNotEmpty
-              ? NetworkImage(ApiService.avatarUrl(avatar))
-              : null,
-          child: (avatar == null || avatar.isEmpty)
-              ? Text(name[0].toUpperCase(),
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18))
-              : null,
-        ),
-        const SizedBox(width: 12),
-        // Info
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Flexible(
-                child: Text(name,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          // â”€â”€ Top row: avatar + name + email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: color.withOpacity(0.15),
+                backgroundImage: avatar != null && avatar.isNotEmpty
+                    ? NetworkImage(ApiService.avatarUrl(avatar))
+                    : null,
+                child: (avatar == null || avatar.isEmpty)
+                    ? Text(name[0].toUpperCase(),
+                        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 17))
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Flexible(
+                      child: Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
+                    ),
+                    if (!isActive) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgMuted,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('Inactive',
+                            style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 2),
+                  Text(
+                    user['email'] as String? ?? '',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
-              ),
-              const SizedBox(width: 6),
-              if (!isActive)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgMuted,
-                    borderRadius: BorderRadius.circular(6),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
-                  child: const Text('Inactive', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                ]),
+              ),
+            ],
+          ),
+
+          // â”€â”€ Bottom row: role chip + active toggle + delete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Role chip (tap to change)
+              GestureDetector(
+                onTap: onRoleTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withOpacity(0.3)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(roleIcon(role), size: 12, color: color),
+                    const SizedBox(width: 4),
+                    Text(roleLabels[role] ?? role,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+                    const SizedBox(width: 3),
+                    Icon(Icons.expand_more, size: 13, color: color),
+                  ]),
                 ),
-            ]),
-            const SizedBox(height: 2),
-            Text(user['email'] as String? ?? '',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        // Role chip (tap to change)
-        Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          GestureDetector(
-            onTap: onRoleTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.3)),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(roleIcon(role), size: 12, color: color),
-                const SizedBox(width: 4),
-                Text(roleLabels[role] ?? role,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-                const SizedBox(width: 2),
-                Icon(Icons.expand_more, size: 12, color: color),
-              ]),
-            ),
+              const Spacer(),
+              // Active / Blocked toggle
+              GestureDetector(
+                onTap: onToggleStatus,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isActive ? const Color(0xFFEEF2FF) : AppColors.bgMuted,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: isActive
+                            ? AppColors.primary.withOpacity(0.3)
+                            : AppColors.border),
+                  ),
+                  child: Text(
+                    isActive ? 'Active' : 'Blocked',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? AppColors.primary : AppColors.textMuted),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Delete button
+              GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.errorBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                  ),
+                  child: const Icon(Icons.delete_outline, size: 17, color: AppColors.error),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          // Active toggle
-          GestureDetector(
-            onTap: onToggleStatus,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isActive ? const Color(0xFFEEF2FF) : AppColors.bgMuted,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: isActive ? AppColors.primary.withOpacity(0.3) : AppColors.border),
-              ),
-              child: Text(
-                isActive ? 'Active' : 'Blocked',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? AppColors.primary : AppColors.textMuted),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Delete button
-          GestureDetector(
-            onTap: onDelete,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.errorBg,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.error.withOpacity(0.25)),
-              ),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.delete_outline, size: 11, color: AppColors.error),
-                SizedBox(width: 3),
-                Text('Delete',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error)),
-              ]),
-            ),
-          ),
-        ]),
-      ]),
+
+        ],
+      ),
     );
   }
 }
+
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/department.dart';
 import '../models/room.dart';
@@ -43,7 +43,7 @@ class _DeptRoomsScreenState extends State<DeptRoomsScreen> {
     final color = dept.flutterColor;
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       body: Column(
         children: [
           // Header
@@ -260,7 +260,7 @@ class _DeptRoomsScreenState extends State<DeptRoomsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('QR — ${widget.department.name}',
+        title: Text('QR â€” ${widget.department.name}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         content: SizedBox(
           width: 240,
@@ -301,7 +301,7 @@ class _DeptRoomsScreenState extends State<DeptRoomsScreen> {
       );
 }
 
-// ─── Room card ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Room card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RoomCard extends StatelessWidget {
   final Room room;
@@ -354,7 +354,7 @@ class _RoomCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── QR panel ───────────────────────────────────────────────────
+              // â”€â”€ QR panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               GestureDetector(
                 onTap: onQr,
                 child: Container(
@@ -404,7 +404,7 @@ class _RoomCard extends StatelessWidget {
                 ),
               ),
 
-              // ── Details panel ──────────────────────────────────────────────
+              // â”€â”€ Details panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
@@ -507,3 +507,5 @@ class _EquipRow extends StatelessWidget {
         ],
       );
 }
+
+

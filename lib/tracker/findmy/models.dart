@@ -2,18 +2,23 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 import 'package:pointycastle/ecc/api.dart';
+
 // ignore: implementation_imports
 import 'package:pointycastle/src/utils.dart' as pc_utils;
+import 'package:smart_inventory/tracker/findMy/find_my_controller.dart';
+import 'package:smart_inventory/tracker/findMy/decrypt_reports.dart';
+import 'package:smart_inventory/tracker/accessory/accessory_battery.dart';
 
-import 'find_my_controller.dart';
-import 'decrypt_reports.dart';
-import '../accessory_battery.dart';
 
+/// Represents a decrypted FindMyReport.
 class FindMyLocationReport {
-  static const _pointCorrection = 0xFFFFFFFF / 10000000;
-
+  static final logger = Logger(
+    printer: PrettyPrinter(methodCount: 0),
+  );
+  static const pointCorrection = 0xFFFFFFFF / 10000000;
   double? latitude;
   double? longitude;
   int? accuracy;
@@ -21,12 +26,14 @@ class FindMyLocationReport {
   int? confidence;
   AccessoryBatteryStatus? batteryStatus;
   dynamic result;
+
   String? base64privateKey;
+
   String? id;
   String? hash;
 
   FindMyLocationReport(this.latitude, this.longitude, this.accuracy,
-      this.timestamp, this.confidence, this.batteryStatus);
+       this.timestamp, this.confidence, this.batteryStatus);
 
   FindMyLocationReport.withHash(
       this.latitude, this.longitude, this.timestamp, this.hash) {
@@ -37,43 +44,70 @@ class FindMyLocationReport {
     hash = result['payload'];
   }
 
-  bool isEncrypted() => latitude == null;
+  Location get location => Location(latitude!, longitude!);
 
-  String? getId() => id;
+  bool isEncrypted() {
+    return latitude == null;
+  }
+
+  String? getId() {
+    return id;
+  }
 
   Future<void> decrypt() async {
-    await Future.delayed(const Duration(milliseconds: 1));
-    if (isEncrypted()) {
-      final report = FindMyReport(
-          base64Decode(result['payload']), id!, result['statusCode']);
-      final decrypted = await DecryptReports.decryptReport(
-          report, base64Decode(base64privateKey!));
-      latitude    = _correctCoordinate(decrypted.latitude!, 90);
-      longitude   = _correctCoordinate(decrypted.longitude!, 180);
-      accuracy    = decrypted.accuracy;
-      timestamp   = decrypted.timestamp;
-      confidence  = decrypted.confidence;
-      batteryStatus = decrypted.batteryStatus;
-      result = null;
-      base64privateKey = null;
+    {
+      await Future.delayed(const Duration(
+          milliseconds: 1)); //Is needed otherwise is executed synchron
+      if (isEncrypted()) {
+        FindMyReport report = FindMyReport(base64Decode(result["payload"]), id!, result["statusCode"]);
+
+        FindMyLocationReport decryptedReport =
+            await DecryptReports.decryptReport(
+                report, base64Decode(base64privateKey!));
+        latitude = correctCoordinate(decryptedReport.latitude!, 90);
+        longitude = correctCoordinate(decryptedReport.longitude!, 180);
+        accuracy = decryptedReport.accuracy;
+        timestamp = decryptedReport.timestamp;
+        confidence = decryptedReport.confidence;
+        result = null;
+        base64privateKey = null;
+        batteryStatus = decryptedReport.batteryStatus;
+      }
     }
   }
 
-  double _correctCoordinate(double c, int threshold) {
-    if (c >  threshold) c -= _pointCorrection;
-    if (c < -threshold) c += _pointCorrection;
-    return c;
+  /// Correction caused by overflow, when point is outside range
+  double correctCoordinate(double coordinate, int threshold) {
+    if (coordinate > threshold) {
+      coordinate = coordinate - pointCorrection;
+    }
+    if (coordinate < -threshold) {
+      coordinate = coordinate + pointCorrection;
+    }
+    return coordinate;
   }
 }
 
+class Location {
+  double latitude;
+  double longitude;
+
+  Location(this.latitude, this.longitude);
+}
+
+/// FindMy report returned by the FindMy Network
 class FindMyReport {
   Uint8List payload;
   String id;
   int statusCode;
+
   int? confidence;
   DateTime? timestamp;
 
   FindMyReport(this.payload, this.id, this.statusCode);
+
+  FindMyReport.completeInit( this.payload, this.id,
+      this.statusCode, this.confidence, this.timestamp);
 }
 
 class FindMyKeyPair {
@@ -81,27 +115,37 @@ class FindMyKeyPair {
   final ECPrivateKey _privateKey;
   final String hashedPublicKey;
   String? privateKeyBase64;
-  final DateTime startTime;
-  final double duration;
+
+  /// Time when this key was used to send BLE advertisements
+  DateTime startTime;
+
+  /// Duration from start time how long the key was used to send BLE advertisements
+  double duration;
 
   FindMyKeyPair(this._publicKey, this.hashedPublicKey, this._privateKey,
       this.startTime, this.duration);
 
-  String getBase64PublicKey() => base64Encode(_publicKey.Q!.getEncoded(false));
+  String getBase64PublicKey() {
+    return base64Encode(_publicKey.Q!.getEncoded(false));
+  }
 
-  String getBase64PrivateKey() =>
-      base64Encode(pc_utils.encodeBigIntAsUnsigned(_privateKey.d!));
+  String getBase64PrivateKey() {
+    return base64Encode(pc_utils.encodeBigIntAsUnsigned(_privateKey.d!));
+  }
 
-  String getBase64AdvertisementKey() =>
-      base64Encode(_getAdvertisementKey());
+  String getBase64AdvertisementKey() {
+    return base64Encode(_getAdvertisementKey());
+  }
 
   Uint8List _getAdvertisementKey() {
-    final pkBytes = _publicKey.Q!.getEncoded(true);
-    return pkBytes.sublist(1, pkBytes.length);
+    var pkBytes = _publicKey.Q!.getEncoded(true);
+    //Drop first byte to get the 28byte version
+    var key = pkBytes.sublist(1, pkBytes.length);
+    return key;
   }
 
   String getHashedAdvertisementKey() {
-    final key = _getAdvertisementKey();
+    var key = _getAdvertisementKey();
     return FindMyController.getHashedPublicKey(publicKeyBytes: key);
   }
 }

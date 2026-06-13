@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
+import '../services/api_service.dart';
 import '../models/app_notification.dart';
+import '../utils/app_colors.dart';
+import '../models/product.dart';
+import 'product_detail_screen.dart';
+import 'maintenance_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -39,7 +44,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final notifs = NotificationService.instance.all;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
         backgroundColor: _primary,
         foregroundColor: Colors.white,
@@ -131,9 +136,36 @@ class _NotifCard extends StatelessWidget {
     required this.onDismiss,
   });
 
+  static _TypeStyle _styleFor(String type) {
+    switch (type) {
+      case 'iot_rfid':
+        return _TypeStyle(Icons.sensors_rounded,        const Color(0xFF0284C7), const Color(0xFFE0F2FE));
+      case 'iot_ble':
+        return _TypeStyle(Icons.bluetooth_rounded,      const Color(0xFF7C3AED), const Color(0xFFEDE9FE));
+      case 'product_retired':
+        return _TypeStyle(Icons.archive_outlined,       const Color(0xFFDC2626), const Color(0xFFFFE4E4));
+      case 'product_critical':
+        return _TypeStyle(Icons.warning_amber_rounded,  const Color(0xFFEF4444), const Color(0xFFFEE2E2));
+      case 'low_stock':
+        return _TypeStyle(Icons.inventory_2_outlined,   const Color(0xFFF59E0B), const Color(0xFFFEF3C7));
+      case 'product_lost':
+        return _TypeStyle(Icons.search_off_rounded,     const Color(0xFF8B5CF6), const Color(0xFFF3E8FF));
+      case 'maintenance_assigned':
+      case 'maintenance_scheduled':
+        return _TypeStyle(Icons.build_rounded,          const Color(0xFFF59E0B), const Color(0xFFFEF3C7));
+      case 'transfer_request':
+      case 'transfer_approved':
+      case 'transfer_rejected':
+        return _TypeStyle(Icons.swap_horiz_rounded,     const Color(0xFF10B981), const Color(0xFFD1FAE5));
+      default:
+        return _TypeStyle(Icons.swap_horiz_rounded,     const Color(0xFF3B5BDB), const Color(0xFFEEF2FF));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRead = notif.isRead;
+    final style  = _styleFor(notif.type);
 
     return Dismissible(
       key: Key(notif.id),
@@ -156,11 +188,11 @@ class _NotifCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: isRead ? Colors.white : const Color(0xFFEEF2FF),
+            color: isRead ? AppColors.card(context) : style.bg,
             borderRadius: BorderRadius.circular(16),
             border: isRead
                 ? Border.all(color: Colors.transparent)
-                : Border.all(color: const Color(0xFF3B5BDB).withOpacity(0.2)),
+                : Border.all(color: style.accent.withOpacity(0.2)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(isRead ? 0.04 : 0.07),
@@ -176,11 +208,10 @@ class _NotifCard extends StatelessWidget {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B5BDB).withOpacity(0.12),
+                  color: style.accent.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.swap_horiz_rounded,
-                    color: Color(0xFF3B5BDB), size: 22),
+                child: Icon(style.icon, color: style.accent, size: 22),
               ),
               const SizedBox(width: 12),
               // Content
@@ -229,31 +260,55 @@ class _NotifCard extends StatelessWidget {
                                 size: 12, color: Colors.black38),
                           ),
                         ],
-                        const Icon(Icons.meeting_room_rounded,
-                            size: 12, color: Color(0xFF3B5BDB)),
+                        Icon(Icons.meeting_room_rounded,
+                            size: 12, color: style.accent),
                         const SizedBox(width: 3),
                         Flexible(
                           child: Text(notif.toRoom ?? '—',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF3B5BDB))),
+                                  color: style.accent)),
                         ),
                       ],
                     ),
                     if (notif.body.isNotEmpty) ...[
                       const SizedBox(height: 5),
                       Row(children: [
-                        const Icon(Icons.person_outline_rounded,
-                            size: 12, color: Colors.black38),
+                        Icon(
+                          notif.type.startsWith('iot_')
+                              ? Icons.router_outlined
+                              : Icons.person_outline_rounded,
+                          size: 12, color: Colors.black38),
                         const SizedBox(width: 4),
-                        Text(notif.body,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w500)),
+                        Flexible(child: Text(notif.body,
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12,
+                                color: Colors.black54, fontWeight: FontWeight.w500))),
+                      ]),
+                    ],
+                    if (notif.productId != null) ...[
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        _ActionBtn(
+                          label: 'View Item',
+                          icon: Icons.open_in_new_rounded,
+                          color: style.accent,
+                          onTap: () => _openProduct(context, notif),
+                        ),
+                        if (notif.type == 'product_critical' ||
+                            notif.type == 'product_moved') ...[
+                          const SizedBox(width: 8),
+                          _ActionBtn(
+                            label: 'Maintenance',
+                            icon: Icons.build_outlined,
+                            color: const Color(0xFFF59E0B),
+                            onTap: () => Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => const MaintenanceScreen())),
+                          ),
+                        ],
                       ]),
                     ],
                   ],
@@ -264,8 +319,8 @@ class _NotifCard extends StatelessWidget {
                 Container(
                   margin: const EdgeInsets.only(top: 4, left: 6),
                   width: 8, height: 8,
-                  decoration: const BoxDecoration(
-                      color: Color(0xFF3B5BDB), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                      color: style.accent, shape: BoxShape.circle),
                 ),
             ],
           ),
@@ -273,4 +328,53 @@ class _NotifCard extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _openProduct(BuildContext context, AppNotification notif) async {
+  if (notif.productId == null) return;
+  try {
+    final res = await ApiService.getProduct(notif.productId!);
+    if (res['success'] == true && context.mounted) {
+      final product = Product.fromJson(res['data'] as Map<String, dynamic>);
+      Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(product: product)));
+    }
+  } catch (_) {}
+}
+
+class _ActionBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionBtn({required this.label, required this.icon,
+      required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11,
+            fontWeight: FontWeight.w700, color: color)),
+      ]),
+    ),
+  );
+}
+
+// ─── Type style helper ────────────────────────────────────────────────────────
+
+class _TypeStyle {
+  final IconData icon;
+  final Color accent;
+  final Color bg;
+  const _TypeStyle(this.icon, this.accent, this.bg);
 }

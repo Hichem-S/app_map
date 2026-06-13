@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const _accent  = Color(0xFF4A7CFC);
 const _accent2 = Color(0xFF6B5BFD);
@@ -9,7 +9,7 @@ const _bg      = Color(0xFFF5F6FA);
 const _dark    = Color(0xFF1A1D2E);
 const _muted   = Color(0xFFB0B7C3);
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class MoveLogScreen extends StatefulWidget {
   const MoveLogScreen({Key? key}) : super(key: key);
@@ -138,7 +138,7 @@ class _MoveLogScreenState extends State<MoveLogScreen> {
     );
   }
 
-  // ── Header ───────────────────────────────────────────────────────────────
+  // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildHeader() {
     return Container(
@@ -209,7 +209,7 @@ class _MoveLogScreenState extends State<MoveLogScreen> {
     );
   }
 
-  // ── Stats row ─────────────────────────────────────────────────────────────
+  // â”€â”€ Stats row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildStats() {
     return Padding(
@@ -239,7 +239,7 @@ class _MoveLogScreenState extends State<MoveLogScreen> {
     );
   }
 
-  // ── Filter chips ──────────────────────────────────────────────────────────
+  // â”€â”€ Filter chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildFilters() {
     return Padding(
@@ -266,7 +266,7 @@ class _MoveLogScreenState extends State<MoveLogScreen> {
     );
   }
 
-  // ── Empty state ───────────────────────────────────────────────────────────
+  // â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildEmpty() {
     return Center(
@@ -297,7 +297,7 @@ class _MoveLogScreenState extends State<MoveLogScreen> {
   }
 }
 
-// ─── Stat pill ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Stat pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _StatPill extends StatelessWidget {
   final String label;
@@ -356,7 +356,7 @@ class _StatPill extends StatelessWidget {
   }
 }
 
-// ─── Filter chip ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Filter chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _FilterChip extends StatelessWidget {
   final String label;
@@ -397,7 +397,7 @@ class _FilterChip extends StatelessWidget {
       );
 }
 
-// ─── Move card ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Move card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _MoveCard extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -621,7 +621,7 @@ class _MoveCard extends StatelessWidget {
   }
 }
 
-// ─── Helpers (file-local to avoid duplicate top-level names) ─────────────────
+// â”€â”€â”€ Helpers (file-local to avoid duplicate top-level names) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Color _mlRoleColor(String? role) => switch (role) {
       'admin'      => const Color(0xFF4A7CFC),
@@ -651,3 +651,5 @@ String _mlTimeAgo(String iso) {
     return '';
   }
 }
+
+

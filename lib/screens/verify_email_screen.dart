@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
@@ -85,9 +85,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         for (int i = 0; i < 6; i++) {
           _otpControllers[i].text = newDevOtp[i];
         }
-        _snack('Email failed — code auto-filled: $newDevOtp');
+        _snack('Email failed â€” code auto-filled: $newDevOtp');
       } else {
-        _snack('New code sent — check your inbox');
+        _snack('New code sent â€” check your inbox');
       }
     } catch (_) {
       if (mounted) _snack('Could not resend. Try again.');
@@ -102,9 +102,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.bgPage,
+        backgroundColor: AppColors.bg(context),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
@@ -321,7 +321,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 }
 
-// ─── OTP box ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ OTP box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
@@ -339,7 +339,7 @@ class _OtpBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 44, height: 52,
+      width: 40, height: 52,
       child: RawKeyboardListener(
         focusNode: FocusNode(),
         onKey: (event) {
@@ -380,3 +380,5 @@ class _OtpBox extends StatelessWidget {
     );
   }
 }
+
+

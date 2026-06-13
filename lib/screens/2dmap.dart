@@ -1487,11 +1487,11 @@ class _Legend extends StatelessWidget {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           _LegendDot(const Color(0xFF22C55E), 'In Stock'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LegendDot(const Color(0xFFF59E0B), 'Maintenance'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LegendDot(const Color(0xFFEF4444), 'Critical'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LegendDot(const Color(0xFF94A3B8), 'Retired'),
         ]),
       );

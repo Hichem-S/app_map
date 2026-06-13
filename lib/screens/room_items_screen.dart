@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
@@ -57,7 +57,7 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
     if (!mounted) return;
     final name     = msg['productName'] as String? ?? 'Équipement';
     final fromRoom = msg['fromRoom']    as String?;
-    final toRoom   = msg['toRoom']      as String? ?? '—';
+    final toRoom   = msg['toRoom']      as String? ?? 'â€”';
     final color    = widget.department.flutterColor;
 
     _notifOverlay?.remove();
@@ -148,7 +148,7 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
   Widget _buildActionBar(Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Colors.white,
+      color: AppColors.card(context),
       child: Row(
         children: [
           Expanded(
@@ -168,9 +168,36 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
               onTap: () => _downloadPdf('journal', color),
             ),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _pdfButton(
+              icon: Icons.domain_outlined,
+              label: 'Rapport dept',
+              color: color,
+              onTap: () => _downloadDeptReport(color),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _downloadDeptReport(Color color) async {
+    final dept = widget.department;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Generating department report…'),
+      duration: Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+    try {
+      final path = await ApiService.downloadDeptReport(dept.id, dept.name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(path != null ? 'Saved: ${path.split('/').last}' : 'Download failed'),
+        backgroundColor: path != null ? color : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (_) {}
   }
 
   Widget _pdfButton({
@@ -365,7 +392,7 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
                                             const SizedBox(width: 8),
                                             Expanded(
                                               child: Text(
-                                                '$pName → ${tRoom ?? '—'}',
+                                                '$pName → ${tRoom ?? 'â€”'}',
                                                 style: const TextStyle(fontWeight: FontWeight.w600),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -412,7 +439,7 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
     final baseHost = ApiService.baseUrl.replaceAll('/api', '');
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       body: Column(
         children: [
           // Header
@@ -466,15 +493,43 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
           // Action bar (PDF downloads)
           _buildActionBar(color),
 
-          // Count
+          // Count + capacity warning
           if (!_loading && _error == null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('${_products.length} item${_products.length != 1 ? 's' : ''}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text('${_products.length} item${_products.length != 1 ? 's' : ''}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                  if (widget.room.capacity != null) ...[
+                    const SizedBox(width: 6),
+                    Text('/ ${widget.room.capacity} capacity',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                  ],
+                ]),
+                if (widget.room.capacity != null &&
+                    _products.length > widget.room.capacity!) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFF59E0B)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        'Room over capacity â€” ${_products.length} items, limit ${widget.room.capacity}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                            color: Color(0xFFB45309)),
+                      )),
+                    ]),
+                  ),
+                ],
+              ]),
             ),
 
           // List
@@ -537,7 +592,12 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
                                             const SizedBox(height: 2),
                                             Row(
                                               children: [
-                                                Text(p.sku, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                                Flexible(
+                                                  child: Text(p.sku,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                                ),
                                                 if (p.categoryName != null) ...[
                                                   const Text('  ·  ', style: TextStyle(color: AppColors.textMuted)),
                                                   Flexible(
@@ -609,7 +669,7 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
       );
 }
 
-// ─── In-app move notification banner ─────────────────────────────────────────
+// â”€â”€â”€ In-app move notification banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _MoveNotifBanner extends StatefulWidget {
   final String productName;
@@ -759,3 +819,5 @@ class _MoveNotifBannerState extends State<_MoveNotifBanner>
     );
   }
 }
+
+

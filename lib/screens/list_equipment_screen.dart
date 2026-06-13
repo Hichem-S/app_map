@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/offline_cache_service.dart';
 import '../models/product.dart';
 import '../models/department.dart';
 import '../models/room.dart';
 import '../utils/app_colors.dart';
+import 'comparison_screen.dart';
 
 class ListEquipmentScreen extends StatefulWidget {
   const ListEquipmentScreen({Key? key}) : super(key: key);
@@ -18,9 +20,16 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
   List<Product> _all = [];
   List<Product> _filtered = [];
   bool _loading = true;
+  bool _isOffline = false;
   String? _error;
   final _searchCtrl = TextEditingController();
   String? _filterStatus;
+
+  // Multi-select
+  bool _selectMode = false;
+  final Set<String> _selected = {};
+  bool _downloadingQR      = false;
+  bool _downloadingBarcode = false;
 
   static const _statusOptions = [
     (null,             'All',         Color(0xFF6366F1)),
@@ -46,17 +55,32 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _error = null; _isOffline = false; });
     try {
       final res = await ApiService.getProducts(limit: 200);
       if (!mounted) return;
-      final rows = (res['data'] as List<dynamic>? ?? [])
-          .map((r) => Product.fromJson(r as Map<String, dynamic>))
-          .toList();
+      final rawList = res['data'] as List<dynamic>? ?? [];
+      final rows = rawList.map((r) => Product.fromJson(r as Map<String, dynamic>)).toList();
+      await OfflineCacheService.cacheProducts(rawList);
       setState(() { _all = rows; _loading = false; });
       _applyFilter();
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    } catch (_) {
+      // Fallback to cache
+      try {
+        final cached = await OfflineCacheService.getCachedProducts();
+        if (!mounted) return;
+        if (cached.isNotEmpty) {
+          setState(() {
+            _all = cached.map((r) => Product.fromJson(r)).toList();
+            _isOffline = true; _loading = false;
+          });
+          _applyFilter();
+        } else {
+          if (mounted) setState(() { _error = 'No connection and no cached data'; _loading = false; });
+        }
+      } catch (e) {
+        if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      }
     }
   }
 
@@ -95,6 +119,54 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
     _applyFilter();
   }
 
+  void _toggleSelect(String id) {
+    setState(() {
+      if (_selected.contains(id)) _selected.remove(id); else _selected.add(id);
+      if (_selected.isEmpty) _selectMode = false;
+    });
+  }
+
+  void _exitSelectMode() => setState(() { _selectMode = false; _selected.clear(); });
+
+  Future<void> _downloadBarcodeSheet() async {
+    setState(() => _downloadingBarcode = true);
+    final path = await ApiService.downloadBarcodeSheet(_selected.toList());
+    if (!mounted) return;
+    setState(() => _downloadingBarcode = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(path != null ? 'Barcode labels saved: $path' : 'Download failed'),
+      backgroundColor: path != null ? const Color(0xFF22C55E) : AppColors.error,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _downloadQRSheet() async {
+    setState(() => _downloadingQR = true);
+    final ids = _selected.toList();
+    final path = await ApiService.downloadQRSheet(ids);
+    if (!mounted) return;
+    setState(() => _downloadingQR = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(path != null ? 'QR sheet saved: $path' : 'Download failed'),
+      backgroundColor: path != null ? const Color(0xFF22C55E) : AppColors.error,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  void _compareSelected() {
+    final products = _filtered.where((p) => _selected.contains(p.id)).toList();
+    if (products.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Select at least 2 items to compare'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => ComparisonScreen(products: products.take(3).toList()),
+    ));
+  }
+
   Widget _statCard(String label, int count, Color color, Color bg, IconData icon) {
     return Expanded(
       child: Container(
@@ -119,9 +191,9 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.card(context),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textH),
@@ -150,19 +222,79 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
             ],
           );
         }),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _load,
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: _selectMode
+            ? [
+                TextButton(
+                  onPressed: _exitSelectMode,
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+                ),
+              ]
+            : [
+                TextButton.icon(
+                  onPressed: () => setState(() => _selectMode = true),
+                  icon: const Icon(Icons.check_box_outlined, size: 18, color: AppColors.primary),
+                  label: const Text('Select', style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                ),
+                _ExportBtn(filterStatus: _filterStatus),
+                IconButton(icon: const Icon(Icons.refresh, color: AppColors.primary), onPressed: _load),
+                const SizedBox(width: 4),
+              ],
       ),
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+        children: [
+          if (_isOffline)
+            Container(
+              width: double.infinity,
+              color: const Color(0xFFF59E0B),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+              child: const Row(children: [
+                Icon(Icons.wifi_off_rounded, size: 14, color: Colors.white),
+                SizedBox(width: 6),
+                Text('Offline — showing cached data', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+          if (_selectMode)
+            Container(
+              color: AppColors.primary.withOpacity(0.07),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                Icon(Icons.check_box_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text('${_selected.length} selected', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _selected.length >= 2 ? _compareSelected : null,
+                  icon: const Icon(Icons.compare_arrows_rounded, size: 16),
+                  label: const Text('Compare', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                ),
+                const SizedBox(width: 4),
+                _downloadingQR
+                    ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                    : TextButton.icon(
+                        onPressed: _selected.isNotEmpty ? _downloadQRSheet : null,
+                        icon: const Icon(Icons.qr_code_rounded, size: 16),
+                        label: const Text('QR', style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                      ),
+                const SizedBox(width: 2),
+                _downloadingBarcode
+                    ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C3AED)))
+                    : TextButton.icon(
+                        onPressed: _selected.isNotEmpty ? _downloadBarcodeSheet : null,
+                        icon: const Icon(Icons.barcode_reader, size: 16),
+                        label: const Text('Labels', style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF7C3AED)),
+                      ),
+              ]),
+            ),
           if (!_loading && _error == null)
             Container(
-              color: Colors.white,
+              color: AppColors.card(context),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Column(
                 children: [
@@ -185,7 +317,7 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
               ),
             ),
           Container(
-            color: Colors.white,
+            color: AppColors.card(context),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Column(
               children: [
@@ -245,11 +377,15 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
           if (!_loading && _error == null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('${_filtered.length} equipment found',
+              child: Row(children: [
+                Text('${_filtered.length} equipment found',
                     style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-              ),
+                const Spacer(),
+                if (_isOffline)
+                  _SyncChip(isOffline: true, onSync: _load)
+                else
+                  _SyncChip(isOffline: false, onSync: _load),
+              ]),
             ),
           Expanded(
             child: _loading
@@ -274,22 +410,151 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
                               onRefresh: _load,
                               color: AppColors.primary,
                               child: ListView.builder(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                                 itemCount: _filtered.length,
-                                itemBuilder: (ctx2, i) => _EquipmentRow(
-                                  product: _filtered[i],
-                                  canPlace: auth.canViewMaps,
-                                  canChangeStatus: auth.canChangeStatus,
-                                  canDelete: auth.canDeleteProduct,
-                                  onStatusChanged:   (s) => _onStatusChanged(_filtered[i], s),
-                                  onLocationChanged: (p) => _onLocationChanged(p),
-                                  onDeleted: () => _removeProduct(_filtered[i].id),
-                                ),
+                                itemBuilder: (ctx2, i) {
+                                  final p = _filtered[i];
+                                  final isSelected = _selected.contains(p.id);
+                                  return GestureDetector(
+                                    onLongPress: () => setState(() {
+                                      _selectMode = true;
+                                      _selected.add(p.id);
+                                    }),
+                                    onTap: _selectMode ? () => _toggleSelect(p.id) : null,
+                                    child: Stack(children: [
+                                      _EquipmentRow(
+                                        product: p,
+                                        canPlace: auth.canViewMaps && !_selectMode,
+                                        canChangeStatus: auth.canChangeStatus && !_selectMode,
+                                        canDelete: auth.canDeleteProduct && !_selectMode,
+                                        onStatusChanged:   (s) => _onStatusChanged(p, s),
+                                        onLocationChanged: (up) => _onLocationChanged(up),
+                                        onDeleted: () => _removeProduct(p.id),
+                                      ),
+                                      if (_selectMode)
+                                        Positioned(top: 10, right: 10,
+                                          child: Container(
+                                            width: 22, height: 22,
+                                            decoration: BoxDecoration(
+                                              color: isSelected ? AppColors.primary : Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: AppColors.primary, width: 2),
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                                : null,
+                                          ),
+                                        ),
+                                    ]),
+                                  );
+                                },
                               ),
                             );
                           }),
           ),
         ],
+      ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Export button ────────────────────────────────────────────────────────────
+
+class _ExportBtn extends StatefulWidget {
+  final String? filterStatus;
+  const _ExportBtn({this.filterStatus});
+  @override
+  State<_ExportBtn> createState() => _ExportBtnState();
+}
+
+class _ExportBtnState extends State<_ExportBtn> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    setState(() => _busy = true);
+    final path = await ApiService.exportProductsCSV(status: widget.filterStatus);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(path != null ? 'Saved: $path' : 'Export failed'),
+      backgroundColor: path != null ? const Color(0xFF22C55E) : AppColors.error,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) => _busy
+      ? const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: SizedBox(width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
+      : IconButton(
+          icon: const Icon(Icons.download_rounded, color: AppColors.primary),
+          tooltip: 'Export CSV',
+          onPressed: _export,
+        );
+}
+
+// ─── Sync chip ────────────────────────────────────────────────────────────────
+
+class _SyncChip extends StatefulWidget {
+  final bool isOffline;
+  final VoidCallback onSync;
+  const _SyncChip({required this.isOffline, required this.onSync});
+  @override
+  State<_SyncChip> createState() => _SyncChipState();
+}
+
+class _SyncChipState extends State<_SyncChip> {
+  String? _lastSync;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final s = await OfflineCacheService.getLastSync();
+    if (mounted && s != null) {
+      final dt = DateTime.tryParse(s);
+      if (dt != null) {
+        final diff = DateTime.now().difference(dt);
+        String label;
+        if (diff.inMinutes < 1)       label = 'just now';
+        else if (diff.inMinutes < 60) label = '${diff.inMinutes}m ago';
+        else if (diff.inHours < 24)   label = '${diff.inHours}h ago';
+        else                           label = '${diff.inDays}d ago';
+        setState(() => _lastSync = label);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isOffline ? const Color(0xFFF59E0B) : AppColors.primary;
+    return GestureDetector(
+      onTap: widget.onSync,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(widget.isOffline ? Icons.wifi_off_rounded : Icons.sync_rounded,
+              size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            widget.isOffline
+                ? (_lastSync != null ? 'Cached · $_lastSync' : 'Offline')
+                : (_lastSync != null ? 'Synced · $_lastSync' : 'Online'),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+          ),
+        ]),
       ),
     );
   }
@@ -433,158 +698,191 @@ class _EquipmentRowState extends State<_EquipmentRow> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Photo
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: p.photoUrl != null
-                  ? Image.network('$baseHost${p.photoUrl}', width: 50, height: 50, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _thumb())
-                  : _thumb(),
-            ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(p.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
-                  const SizedBox(height: 2),
-                  Row(
+
+            // ── Top row: photo + info ─────────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: p.photoUrl != null
+                      ? Image.network('$baseHost${p.photoUrl}', width: 50, height: 50, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _thumb())
+                      : _thumb(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(p.sku, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                      if (p.categoryName != null) ...[
-                        const Text('  ·  ', style: TextStyle(color: AppColors.textMuted)),
-                        Flexible(
-                          child: Text(p.categoryName!,
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11, color: AppColors.primary)),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // Location badge
-                  if (p.roomId != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: dBg, borderRadius: BorderRadius.circular(8)),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
+                      const SizedBox(height: 3),
+                      Row(
                         children: [
-                          Icon(Icons.location_on, size: 11, color: dColor),
-                          const SizedBox(width: 3),
                           Flexible(
-                            child: Text(
-                              '${p.departmentCode ?? ''} · ${p.roomName ?? ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: dColor),
-                            ),
+                            fit: FlexFit.loose,
+                            child: Text(p.sku,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                           ),
+                          if (p.categoryName != null) ...[
+                            const Text('  ·  ', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                            Flexible(
+                              child: Text(p.categoryName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11, color: AppColors.primary)),
+                            ),
+                          ],
                         ],
                       ),
-                    )
-                  else
-                    const Text('Not placed yet',
-                        style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Status badge — tappable only for admin / magazinier
-                GestureDetector(
-                  onTap: (widget.canChangeStatus && !_savingStatus) ? _pickStatus : null,
-                  child: _savingStatus
-                      ? const SizedBox(width: 22, height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                      : Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      const SizedBox(height: 5),
+                      if (p.quantity == 0) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: bg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: color.withValues(alpha: 0.3)),
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(6),
                           ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.inventory_2_outlined, size: 10, color: Color(0xFFEF4444)),
+                            SizedBox(width: 3),
+                            Text('Out of stock', style: TextStyle(fontSize: 9,
+                                fontWeight: FontWeight.w700, color: Color(0xFFEF4444))),
+                          ]),
+                        ),
+                      ],
+                      if (p.roomId != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: dBg, borderRadius: BorderRadius.circular(8)),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(icon, size: 11, color: color),
+                              Icon(Icons.location_on, size: 11, color: dColor),
                               const SizedBox(width: 3),
-                              Text(_labels[p.status] ?? p.status,
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
-                              if (widget.canChangeStatus) ...[
-                                const SizedBox(width: 2),
-                                Icon(Icons.expand_more, size: 11, color: color),
-                              ],
+                              Flexible(
+                                child: Text(
+                                  '${p.departmentCode ?? ''} · ${p.roomName ?? ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: dColor),
+                                ),
+                              ),
                             ],
                           ),
-                        ),
+                        )
+                      else
+                        const Text('Not placed yet',
+                            style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                    ],
+                  ),
                 ),
-                if (widget.canPlace) ...[
-                  const SizedBox(height: 6),
+              ],
+            ),
+
+            // ── Bottom row: status chip + place + delete ───────────────
+            if (widget.canChangeStatus || widget.canPlace || widget.canDelete) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  // Status chip (left-aligned)
                   GestureDetector(
-                    onTap: _savingLocation ? null : _pickLocation,
-                    child: _savingLocation
+                    onTap: (widget.canChangeStatus && !_savingStatus) ? _pickStatus : null,
+                    child: _savingStatus
                         ? const SizedBox(width: 22, height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                         : Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryGlow,
+                              color: bg,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              border: Border.all(color: color.withValues(alpha: 0.3)),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.push_pin_outlined, size: 11, color: AppColors.primary),
-                                SizedBox(width: 3),
-                                Text('Place', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                                Icon(icon, size: 12, color: color),
+                                const SizedBox(width: 4),
+                                Text(_labels[p.status] ?? p.status,
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+                                if (widget.canChangeStatus) ...[
+                                  const SizedBox(width: 3),
+                                  Icon(Icons.expand_more, size: 14, color: color),
+                                ],
                               ],
                             ),
                           ),
                   ),
-                ],
-                if (widget.canDelete) ...[
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: (_deleting) ? null : _confirmDelete,
-                    child: _deleting
-                        ? const SizedBox(width: 22, height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
-                        : Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFEEEE),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                  const Spacer(),
+                  // Place button (right side)
+                  if (widget.canPlace)
+                    GestureDetector(
+                      onTap: _savingLocation ? null : _pickLocation,
+                      child: _savingLocation
+                          ? const SizedBox(width: 22, height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                          : Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryGlow,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.push_pin_outlined, size: 12, color: AppColors.primary),
+                                  SizedBox(width: 4),
+                                  Text('Place', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                                ],
+                              ),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.delete_outline, size: 11, color: Colors.red),
-                                SizedBox(width: 3),
-                                Text('Delete', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.red)),
-                              ],
+                    ),
+                  // Delete button (right side)
+                  if (widget.canDelete) ...[
+                    if (widget.canPlace) const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _deleting ? null : _confirmDelete,
+                      child: _deleting
+                          ? const SizedBox(width: 22, height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+                          : Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFEEEE),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.delete_outline, size: 12, color: Colors.red),
+                                  SizedBox(width: 4),
+                                  Text('Delete', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red)),
+                                ],
+                              ),
                             ),
-                          ),
-                  ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
+              ),
+            ],
+
           ],
         ),
       ),

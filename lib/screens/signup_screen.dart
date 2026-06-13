@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
 
@@ -77,15 +77,15 @@ class _SignupScreenState extends State<SignupScreen> {
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       body: Stack(
         children: [
-          // Gradient blobs — top-left
+          // Gradient blobs â€” top-left
           Positioned(
             top: -80, left: -80,
             child: Container(
@@ -99,7 +99,7 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
           ),
-          // Gradient blob — bottom-right
+          // Gradient blob â€” bottom-right
           Positioned(
             bottom: -60, right: -60,
             child: Container(
@@ -140,7 +140,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ── Logo block ─────────────────────────────────────────────────────────────
+  // â”€â”€ Logo block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildLogo() {
     return Column(
@@ -171,7 +171,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ── Form card ──────────────────────────────────────────────────────────────
+  // â”€â”€ Form card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildCard() {
     return Container(
@@ -412,11 +412,11 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ── Login link ─────────────────────────────────────────────────────────────
+  // â”€â”€ Login link â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildLoginLink() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
       children: [
         const Text(
           'Already have an account? ',
@@ -435,7 +435,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _label(String text) => Text(
         text,
@@ -466,7 +466,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
-// ── Role chip ─────────────────────────────────────────────────────────────────
+// â”€â”€ Role chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RoleChip extends StatelessWidget {
   final String label;
@@ -514,7 +514,7 @@ class _RoleChip extends StatelessWidget {
   }
 }
 
-// ── Shared button widgets (mirrors login_screen.dart) ────────────────────────
+// â”€â”€ Shared button widgets (mirrors login_screen.dart) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _GradientButton extends StatelessWidget {
   final String label;
@@ -589,3 +589,5 @@ class _SocialButton extends StatelessWidget {
     );
   }
 }
+
+

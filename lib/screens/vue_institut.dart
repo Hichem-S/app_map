@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../models/department.dart';
@@ -48,7 +48,7 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : RefreshIndicator(
@@ -179,7 +179,7 @@ class _IsetMahdiaScreenState extends State<IsetMahdiaScreen> {
   }
 }
 
-// ── Shared section header ─────────────────────────────────────────────────────
+// â”€â”€ Shared section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SectionHeader extends StatelessWidget {
   final IconData icon;
@@ -219,7 +219,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Hero Header ───────────────────────────────────────────────────────────────
+// â”€â”€ Hero Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HeroHeader extends StatelessWidget {
   final int totalDepts, totalRooms, totalItems, inStock, inMaintenance, critical;
@@ -313,15 +313,18 @@ class _HeroHeader extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _StatChip(icon: Icons.business_outlined,     value: '$totalDepts',    label: 'Depts'),
-                  _StatChip(icon: Icons.meeting_room_outlined, value: '$totalRooms',    label: 'Rooms'),
-                  _StatChip(icon: Icons.inventory_2_outlined,  value: '$totalItems',    label: 'Items'),
-                  _StatChip(icon: Icons.check_circle_outline,  value: '$inStock',       label: 'Active',
-                      valueColor: const Color(0xFF86EFAC)),
-                  _StatChip(icon: Icons.warning_amber_outlined, value: '$critical',     label: 'Critical',
-                      valueColor: const Color(0xFFFCD34D)),
+                  Expanded(child: _StatChip(icon: Icons.business_outlined,     value: '$totalDepts',    label: 'Depts')),
+                  const SizedBox(width: 6),
+                  Expanded(child: _StatChip(icon: Icons.meeting_room_outlined, value: '$totalRooms',    label: 'Rooms')),
+                  const SizedBox(width: 6),
+                  Expanded(child: _StatChip(icon: Icons.inventory_2_outlined,  value: '$totalItems',    label: 'Items')),
+                  const SizedBox(width: 6),
+                  Expanded(child: _StatChip(icon: Icons.check_circle_outline,  value: '$inStock',       label: 'Active',
+                      valueColor: const Color(0xFF86EFAC))),
+                  const SizedBox(width: 6),
+                  Expanded(child: _StatChip(icon: Icons.warning_amber_outlined, value: '$critical',     label: 'Critical',
+                      valueColor: const Color(0xFFFCD34D))),
                 ],
               ),
             ),
@@ -368,7 +371,7 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-// ── Contact Card ──────────────────────────────────────────────────────────────
+// â”€â”€ Contact Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ContactCard extends StatelessWidget {
   @override
@@ -393,7 +396,7 @@ class _ContactCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           const Expanded(
-            child: Text('Route de Hiboun, BP 153 — Mahdia 5100, Tunisia',
+            child: Text('Route de Hiboun, BP 153 â€” Mahdia 5100, Tunisia',
                 style: TextStyle(fontSize: 13, color: AppColors.textBody)),
           ),
         ]),
@@ -410,7 +413,9 @@ class _ContactCard extends StatelessWidget {
           const SizedBox(width: 10),
           const Text('+216 73 675 100',
               style: TextStyle(fontSize: 13, color: AppColors.textBody)),
-          const Spacer(),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
@@ -422,6 +427,8 @@ class _ContactCard extends StatelessWidget {
           const SizedBox(width: 10),
           const Flexible(
             child: Text('contact@isetmahdia.rnu.tn',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
           ),
         ]),
@@ -430,7 +437,7 @@ class _ContactCard extends StatelessWidget {
   }
 }
 
-// ── Equipment Status Section ──────────────────────────────────────────────────
+// â”€â”€ Equipment Status Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ParcSection extends StatelessWidget {
   final Map<String, dynamic> stats;
@@ -529,7 +536,7 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-// ── QR Section ────────────────────────────────────────────────────────────────
+// â”€â”€ QR Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _QrSection extends StatelessWidget {
   final List<Department> departments;
@@ -670,7 +677,7 @@ class _QrCard extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('${dept.code} — ${dept.name}',
+        title: Text('${dept.code} â€” ${dept.name}',
             style: const TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textH)),
         content: SizedBox(
@@ -700,7 +707,7 @@ class _QrCard extends StatelessWidget {
   }
 }
 
-// ── Department Card ───────────────────────────────────────────────────────────
+// â”€â”€ Department Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DepartmentCard extends StatelessWidget {
   final Department dept;
@@ -856,3 +863,5 @@ class _StatBox extends StatelessWidget {
     );
   }
 }
+
+

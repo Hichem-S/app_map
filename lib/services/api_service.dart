@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/download_helper.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.31.23:3000/api';
+  static const String baseUrl = 'http://172.20.10.6:3000/api';
 
   static final _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -181,6 +181,17 @@ class ApiService {
   static Future<List<dynamic>> getUsers() async {
     final res = await http.get(
       Uri.parse('$baseUrl/auth/users'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode != 200) return [];
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['data'] as List<dynamic>?) ?? [];
+  }
+
+  // Active admins + techniciens — accessible to all staff roles
+  static Future<List<dynamic>> getStaff() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/auth/staff'),
       headers: await _authHeaders(),
     );
     if (res.statusCode != 200) return [];
@@ -432,6 +443,143 @@ class ApiService {
     return (data['data'] as List<dynamic>?) ?? [];
   }
 
+  static Future<Map<String, dynamic>> getProductByRfid(String uid) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/products/rfid-scan')
+          .replace(queryParameters: {'uid': uid}),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> getUnregisteredScans() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/iot/unregistered'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> assignUnregisteredTag(
+      String scanId, String productId) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/iot/unregistered/$scanId/assign'),
+      headers: {
+        ...await _authHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'product_id': productId}),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> assignRfidTag(
+    String productId, {
+    String? rfidTag,
+    String? bleDevice,
+  }) async {
+    final body = <String, dynamic>{};
+    if (rfidTag != null) body['rfid_tag'] = rfidTag;
+    if (bleDevice != null) body['ble_device'] = bleDevice;
+    final res = await http.patch(
+      Uri.parse('$baseUrl/products/$productId/rfid'),
+      headers: {
+        ...await _authHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> getIotScanHistory({
+    String? scanType,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final params = <String, String>{
+      'limit': '$limit',
+      'offset': '$offset',
+      if (scanType != null) 'scan_type': scanType,
+    };
+    final uri =
+        Uri.parse('$baseUrl/iot/scan-history').replace(queryParameters: params);
+    final res = await http.get(uri, headers: await _authHeaders());
+    if (res.statusCode != 200)
+      return {'success': false, 'data': [], 'total': 0};
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ── Tracker endpoints ─────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getTrackers() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/trackers'),
+      headers: await _authHeaders(),
+    );
+    if (res.statusCode != 200) return [];
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['data'] as List<dynamic>?) ?? [];
+  }
+
+  static Future<void> toggleTracker(String productId, bool active) async {
+    await http.patch(
+      Uri.parse('$baseUrl/trackers/$productId/toggle'),
+      headers: {...await _authHeaders(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'active': active}),
+    );
+  }
+
+  static Future<void> pingTracker(String productId) async {
+    await http.post(
+      Uri.parse('$baseUrl/trackers/$productId/ping'),
+      headers: await _authHeaders(),
+    );
+  }
+
+  static Future<Map<String, dynamic>> linkTracker(
+      String productId, String hashedKey,
+      {String? bleMac}) async {
+    final body = <String, dynamic>{'hashed_key': hashedKey};
+    if (bleMac != null) body['ble_mac'] = bleMac;
+    final res = await http.patch(
+      Uri.parse('$baseUrl/trackers/$productId/link'),
+      headers: {...await _authHeaders(), 'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> unlinkTracker(String productId) async {
+    await http.delete(
+      Uri.parse('$baseUrl/trackers/$productId/link'),
+      headers: await _authHeaders(),
+    );
+  }
+
+  static Future<void> checkInTracker(
+      String productId, double lat, double lng, int? battery) async {
+    await http.patch(
+      Uri.parse('$baseUrl/trackers/$productId/check-in'),
+      headers: {...await _authHeaders(), 'Content-Type': 'application/json'},
+      body: jsonEncode(
+          {'lat': lat, 'lng': lng, if (battery != null) 'battery': battery}),
+    );
+  }
+
+  // ── BLE proximity ──────────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getProductsByBleMacs(List<String> macs) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/products/ble-lookup'),
+      headers: {...await _authHeaders(), 'Content-Type': 'application/json'},
+      body: jsonEncode({'macs': macs}),
+    );
+    if (res.statusCode != 200) return [];
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['data'] as List<dynamic>?) ?? [];
+  }
+
   static Future<Map<String, dynamic>> checkBarcode(String barcode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/products/barcode-check')
@@ -455,6 +603,9 @@ class ApiService {
     XFile? photo,
     Uint8List? photoBytes,
     Map<String, dynamic>? specifications,
+    DateTime? purchaseDate,
+    DateTime? warrantyExpiry,
+    DateTime? endOfLifeDate,
   }) async {
     final token = await getToken();
     final request =
@@ -475,6 +626,14 @@ class ApiService {
     if (specifications != null && specifications.isNotEmpty) {
       request.fields['specifications'] = jsonEncode(specifications);
     }
+    String _fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    if (purchaseDate != null)
+      request.fields['purchase_date'] = _fmt(purchaseDate);
+    if (warrantyExpiry != null)
+      request.fields['warranty_expiry'] = _fmt(warrantyExpiry);
+    if (endOfLifeDate != null)
+      request.fields['end_of_life_date'] = _fmt(endOfLifeDate);
     if (photo != null) await _attachPhoto(request, photo, photoBytes);
 
     final streamed = await request.send();
@@ -496,10 +655,15 @@ class ApiService {
     String? roomId,
     bool setRoom = false,
     String? rfidTag,
-    bool setRfid = false, // when true, always sends rfid_tag (null → '' to clear)
+    bool setRfid = false,
+    String? bleDevice,
+    bool setBle = false,
     XFile? photo,
     Uint8List? photoBytes,
     Map<String, dynamic>? specifications,
+    DateTime? purchaseDate,
+    DateTime? warrantyExpiry,
+    DateTime? endOfLifeDate,
   }) async {
     final token = await getToken();
     final request =
@@ -526,9 +690,22 @@ class ApiService {
     } else if (rfidTag != null) {
       request.fields['rfid_tag'] = rfidTag;
     }
+    if (setBle) {
+      request.fields['ble_device'] = bleDevice ?? '';
+    } else if (bleDevice != null) {
+      request.fields['ble_device'] = bleDevice;
+    }
     if (specifications != null && specifications.isNotEmpty) {
       request.fields['specifications'] = jsonEncode(specifications);
     }
+    String _fmtDate(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    if (purchaseDate != null)
+      request.fields['purchase_date'] = _fmtDate(purchaseDate);
+    if (warrantyExpiry != null)
+      request.fields['warranty_expiry'] = _fmtDate(warrantyExpiry);
+    if (endOfLifeDate != null)
+      request.fields['end_of_life_date'] = _fmtDate(endOfLifeDate);
     if (photo != null) await _attachPhoto(request, photo, photoBytes);
 
     final streamed = await request.send();
@@ -686,6 +863,166 @@ class ApiService {
         '$baseUrl/reports/rooms/$roomId/journal', 'journal_$safe.pdf');
   }
 
+  static Future<String?> downloadDeptReport(String deptId, String deptName) {
+    final safe =
+        deptName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+    return _downloadAuthFile(
+        '$baseUrl/reports/departments/$deptId', 'dept_$safe.pdf');
+  }
+
+  static Future<String?> exportProductsCSV(
+      {String? status, String? department}) async {
+    try {
+      final uri =
+          Uri.parse('$baseUrl/products/export').replace(queryParameters: {
+        if (status != null) 'status': status,
+        if (department != null) 'department': department,
+      });
+      final res = await http.get(uri, headers: await _authHeaders());
+      if (res.statusCode != 200) return null;
+      return await downloadFileLocally(res.bodyBytes, 'inventory_export.csv');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> downloadProductMaintenanceReport(
+      String productId, String productName) {
+    final safe =
+        productName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+    return _downloadAuthFile('$baseUrl/reports/products/$productId/maintenance',
+        'maintenance_$safe.pdf');
+  }
+
+  static Future<String?> downloadBarcodeSheet(List<String> productIds) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/reports/products/barcode-sheet'),
+        headers: await _authHeaders(),
+        body: jsonEncode({'productIds': productIds}),
+      );
+      if (res.statusCode != 200) return null;
+      return await downloadFileLocally(res.bodyBytes, 'barcode_labels.pdf');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> downloadQRSheet(List<String> productIds) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/reports/products/qr-sheet'),
+        headers: await _authHeaders(),
+        body: jsonEncode({'productIds': productIds}),
+      );
+      if (res.statusCode != 200) return null;
+      return await downloadFileLocally(res.bodyBytes, 'qr_sheet.pdf');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> downloadIsetReport() {
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    return _downloadAuthFile(
+        '$baseUrl/reports/iset', 'iset_mahdia_report_$date.pdf');
+  }
+
+  // ─── Transfer requests ────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getTransfers({String? status}) async {
+    final uri = Uri.parse('$baseUrl/transfers').replace(queryParameters: {
+      if (status != null) 'status': status,
+    });
+    final res = await http.get(uri, headers: await _authHeaders());
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createTransfer({
+    required String productId,
+    required String toRoomId,
+    String? notes,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/transfers'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'product_id': productId,
+        'to_room_id': toRoomId,
+        if (notes != null) 'notes': notes
+      }),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> approveTransfer(String id) async {
+    await http.patch(Uri.parse('$baseUrl/transfers/$id/approve'),
+        headers: await _authHeaders());
+  }
+
+  static Future<void> rejectTransfer(String id) async {
+    await http.patch(Uri.parse('$baseUrl/transfers/$id/reject'),
+        headers: await _authHeaders());
+  }
+
+  // ─── Analytics ────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getAnalyticsDashboard() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/analytics/dashboard'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ─── Warranty alerts ──────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>?> getProductHealth(
+      String productId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/products/$productId/health'),
+        headers: await _authHeaders(),
+      );
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return body['success'] == true
+          ? body['data'] as Map<String, dynamic>
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<dynamic>> getProductActivity(String productId) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/products/$productId/activity'),
+      headers: await _authHeaders(),
+    );
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['data'] as List?) ?? [];
+  }
+
+  static Future<List<dynamic>> getWarrantyAlerts() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/products/warranty-alerts'),
+      headers: await _authHeaders(),
+    );
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['data'] as List?) ?? [];
+  }
+
+  // ─── CSV import ───────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> importProductsCSV(
+      String csvContent) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/products/import'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'csv': csvContent}),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   // ─── Notifications ───────────────────────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getNotifications() async {
@@ -723,5 +1060,205 @@ class ApiService {
       Uri.parse('$baseUrl/notifications'),
       headers: await _authHeaders(),
     );
+  }
+
+  // ─── Messenger ───────────────────────────────────────────────────────────────
+
+  static Future<String?> getMyId() async {
+    try {
+      final res = await getMe();
+      return (res['data'] as Map<String, dynamic>?)?['id'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getChatUsers() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/messages/users'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> getConversations() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/messages/conversations'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createConversation({
+    required String type,
+    required List<String> memberIds,
+    String? name,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/messages/conversations'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'type': type,
+        'member_ids': memberIds,
+        if (name != null) 'name': name,
+      }),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> getMessages(String conversationId,
+      {int limit = 50, String? before}) async {
+    final uri = Uri.parse('$baseUrl/messages/conversations/$conversationId')
+        .replace(queryParameters: {
+      'limit': '$limit',
+      if (before != null) 'before': before,
+    });
+    final res = await http.get(uri, headers: await _authHeaders());
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> sendMessage(
+      String conversationId, String content) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/messages/conversations/$conversationId'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'content': content}),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> markAsRead(String conversationId) async {
+    await http.patch(
+      Uri.parse('$baseUrl/messages/conversations/$conversationId/read'),
+      headers: await _authHeaders(),
+    );
+  }
+
+  // ─── AI Assistant ─────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> queryAI(String question) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/ai/query'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'question': question}),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ─── Checkouts ────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getCheckouts(
+      {bool mine = false, String? status}) async {
+    final uri = Uri.parse('$baseUrl/checkouts').replace(queryParameters: {
+      if (mine) 'mine': 'true',
+      if (status != null) 'status': status,
+    });
+    final res = await http.get(uri, headers: await _authHeaders());
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> requestCheckout(String productId,
+      {DateTime? dueDate, String? notes}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/checkouts'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'product_id': productId,
+        if (dueDate != null)
+          'due_date':
+              '${dueDate.year}-${dueDate.month.toString().padLeft(2, '0')}-${dueDate.day.toString().padLeft(2, '0')}',
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      }),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> approveCheckout(String id) async {
+    await http.patch(Uri.parse('$baseUrl/checkouts/$id/approve'),
+        headers: await _authHeaders());
+  }
+
+  static Future<void> rejectCheckout(String id) async {
+    await http.patch(Uri.parse('$baseUrl/checkouts/$id/reject'),
+        headers: await _authHeaders());
+  }
+
+  static Future<void> returnCheckout(String id) async {
+    await http.patch(Uri.parse('$baseUrl/checkouts/$id/return'),
+        headers: await _authHeaders());
+  }
+
+  // ─── Maintenance ──────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getMaintenanceTasks(
+      {String? status, String? priority, String? productId}) async {
+    final uri = Uri.parse('$baseUrl/maintenance').replace(queryParameters: {
+      if (status != null) 'status': status,
+      if (priority != null) 'priority': priority,
+      if (productId != null) 'product_id': productId,
+    });
+    final res = await http.get(uri, headers: await _authHeaders());
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createMaintenanceTask({
+    required String productId,
+    required String title,
+    String? description,
+    String priority = 'medium',
+    String? assignedTo,
+    DateTime? scheduledDate,
+    int? recurrenceIntervalDays,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/maintenance'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'product_id': productId,
+        'title': title,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        'priority': priority,
+        if (assignedTo != null) 'assigned_to': assignedTo,
+        if (scheduledDate != null)
+          'scheduled_date':
+              '${scheduledDate.year}-${scheduledDate.month.toString().padLeft(2, '0')}-${scheduledDate.day.toString().padLeft(2, '0')}',
+        if (recurrenceIntervalDays != null)
+          'recurrence_interval_days': recurrenceIntervalDays,
+      }),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> updateMaintenanceStatus(String id, String status) async {
+    await http.patch(
+      Uri.parse('$baseUrl/maintenance/$id/status'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'status': status}),
+    );
+  }
+
+  static Future<List<dynamic>> getMaintenanceNotes(String taskId) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/maintenance/$taskId/notes'),
+      headers: await _authHeaders(),
+    );
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['data'] as List?) ?? [];
+  }
+
+  static Future<Map<String, dynamic>> addMaintenanceNote(
+      String taskId, String note) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/maintenance/$taskId/notes'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'note': note}),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<void> deleteMaintenanceTask(String id) async {
+    await http.delete(Uri.parse('$baseUrl/maintenance/$id'),
+        headers: await _authHeaders());
   }
 }

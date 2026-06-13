@@ -544,7 +544,7 @@ class _DeptSheetState extends State<_DeptSheet> {
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.6),
+            crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.2),
         itemCount: dept.rooms.length,
         itemBuilder: (_, i) => _RoomCard(
             room: dept.rooms[i], color: color,
@@ -716,11 +716,11 @@ class _Legend extends StatelessWidget {
             border: Border.all(color: const Color(0xFF334155))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           _LDot(const Color(0xFF22C55E), 'In Stock'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LDot(const Color(0xFFF59E0B), 'Maintenance'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LDot(const Color(0xFFEF4444), 'Critical'),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           _LDot(const Color(0xFF94A3B8), 'Retired'),
         ]),
       );

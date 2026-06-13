@@ -1,12 +1,16 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
 import '../models/department.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_l10n.dart';
 import 'dept_rooms_screen.dart';
 import 'product_detail_screen.dart';
+import 'maintenance_screen.dart';
+import 'rfid_screen.dart';
+import 'ble_screen.dart';
 
 final _baseHost = ApiService.baseUrl.replaceAll('/api', '');
 
@@ -122,7 +126,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     await _showProductDialog(p);
   }
 
-  // ─── Core logic ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Core logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onQRDetected(String raw) async {
     if (_isSearching) return;
@@ -131,7 +135,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     try {
       final trimmed = raw.trim();
 
-      // ── ISET hierarchical QR codes ──────────────────────────────────────────
+      // â”€â”€ ISET hierarchical QR codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (trimmed == 'ISET://institution') {
         setState(() { _isSearching = false; _scanned = false; });
         if (mounted) Navigator.pushNamed(context, '/vueinstitut');
@@ -161,7 +165,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         return;
       }
 
-      // ── Product QR (UUID) or physical barcode ───────────────────────────────
+      // â”€â”€ Product QR (UUID) or physical barcode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       final uuidRegex = RegExp(
         r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
         caseSensitive: false,
@@ -190,7 +194,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         return;
       }
 
-      // Not a UUID — try as a physical barcode
+      // Not a UUID â€” try as a physical barcode
       final barcodeRes = await ApiService.checkBarcode(trimmed);
       if (!mounted) return;
       if (barcodeRes['exists'] == true && barcodeRes['data'] != null) {
@@ -241,19 +245,56 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   Future<void> _showProductDialog(Product product) async {
     await _cameraController.stop();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product)),
+    await _showQuickActions(product);
+    if (mounted && _cameraActive) await _cameraController.start();
+  }
+
+  Future<void> _showQuickActions(Product product) async {
+    final baseHost = ApiService.baseUrl.replaceAll('/api', '');
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _QuickActionsSheet(
+        product:  product,
+        baseHost: baseHost,
+        onAction: (action) async {
+          Navigator.pop(ctx);
+          switch (action) {
+            case 'view':
+              await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ProductDetailScreen(product: product)));
+              break;
+            case 'move':
+              await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ProductDetailScreen(product: product, initiallyEditing: true)));
+              break;
+            case 'issue':
+              await ApiService.updateProductStatus(product.id, 'critical_issue');
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Item marked as critical issue'),
+                backgroundColor: Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+              ));
+              break;
+            case 'maintenance':
+              await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const MaintenanceScreen()));
+              break;
+            case 'history':
+              await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ProductDetailScreen(product: product)));
+              break;
+          }
+        },
+      ),
     );
-    if (mounted && _cameraActive) {
-      await _cameraController.start();
-    }
   }
 
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  // ─── Build ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +306,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         if (context.mounted) Navigator.pop(context);
       },
       child: Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -296,6 +337,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
               onPressed: () => _cameraController.toggleTorch(),
             ),
+          IconButton(
+            icon: const Icon(Icons.nfc_rounded, color: Color(0xFF6D28D9)),
+            tooltip: 'RFID Scanner',
+            onPressed: () {
+              _cameraController.stop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RfidScreen()),
+              ).then((_) {
+                if (mounted && _cameraActive) _cameraController.start();
+              });
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.bluetooth_searching_rounded, color: Color(0xFF2563EB)),
+            tooltip: 'BLE Scanner',
+            onPressed: () {
+              _cameraController.stop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BleScreen()),
+              ).then((_) {
+                if (mounted && _cameraActive) _cameraController.start();
+              });
+            },
+          ),
           Container(
             margin: const EdgeInsets.only(right: 16),
             width: 44, height: 44,
@@ -344,7 +411,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );   // PopScope
   }
 
-  // ─── Camera tab ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Camera tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildCameraView() {
     return SingleChildScrollView(
@@ -498,7 +565,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 
-  // ─── Manual entry tab ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Manual entry tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildManualEntry() {
     return SingleChildScrollView(
@@ -752,7 +819,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 
-  // ─── Recent scans ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Recent scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildRecentScans() {
     return Container(
@@ -837,7 +904,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildTab(IconData icon, String label, bool selected, VoidCallback onTap) {
     return Expanded(
@@ -872,6 +939,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Widget _corner(Alignment alignment, {required bool left, required bool top}) {
+    // ignore: dead_code - kept below
     return Align(
       alignment: alignment,
       child: Container(
@@ -887,4 +955,130 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       ),
     );
   }
+}
+
+// ── Quick actions bottom sheet ─────────────────────────────────────────────────
+
+class _QuickActionsSheet extends StatelessWidget {
+  final Product  product;
+  final String   baseHost;
+  final void Function(String action) onAction;
+  const _QuickActionsSheet({required this.product, required this.baseHost, required this.onAction});
+
+  static const _statusColors = {
+    'in_stock': Color(0xFF10B981), 'operational': Color(0xFF4F46E5),
+    'in_maintenance': Color(0xFFF59E0B), 'critical_issue': Color(0xFFEF4444),
+    'retired': Color(0xFF6B7280), 'lost': Color(0xFF8B5CF6),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final sColor = _statusColors[product.status] ?? AppColors.textMuted;
+    final l10n   = context.l10n;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Handle
+        Center(child: Container(margin: const EdgeInsets.only(top: 12),
+          width: 40, height: 4,
+          decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+
+        // Product header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: product.photoUrl != null
+                  ? Image.network('$baseHost${product.photoUrl}', width: 56, height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _placeholder())
+                  : _placeholder(),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(product.name, style: const TextStyle(fontSize: 16,
+                  fontWeight: FontWeight.w800, color: AppColors.textH),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(product.sku, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: sColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Text(product.status.replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: sColor)),
+              ),
+            ])),
+            if (product.roomName != null)
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textMuted),
+                Text(product.departmentCode ?? '', style: const TextStyle(fontSize: 11,
+                    fontWeight: FontWeight.w700, color: AppColors.primary)),
+                Text(product.roomName!, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              ]),
+          ]),
+        ),
+
+        const Divider(height: 24, indent: 20, endIndent: 20),
+
+        // Action grid
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: GridView.count(
+            crossAxisCount: 3, shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10, mainAxisSpacing: 10,
+            childAspectRatio: 1.1,
+            children: [
+              _ActionTile(Icons.open_in_new_rounded,   AppColors.primary,           l10n.viewDetails,     () => onAction('view')),
+              _ActionTile(Icons.swap_horiz_rounded,    const Color(0xFF0EA5E9),     l10n.moveItem,        () => onAction('move')),
+              _ActionTile(Icons.warning_amber_rounded, const Color(0xFFEF4444),     l10n.reportIssue,     () => onAction('issue')),
+              _ActionTile(Icons.build_rounded,         const Color(0xFFF59E0B),     l10n.startMaintenance,() => onAction('maintenance')),
+              _ActionTile(Icons.timeline_rounded,      const Color(0xFF8B5CF6),     l10n.viewHistory,     () => onAction('history')),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _placeholder() => Container(width: 56, height: 56,
+      color: AppColors.bgMuted, child: const Icon(Icons.devices_other,
+          color: AppColors.textMuted, size: 28));
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionTile(this.icon, this.color, this.label, this.onTap);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: color.withOpacity(0.12), shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(height: 6),
+        Text(label, textAlign: TextAlign.center, maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+      ]),
+    ),
+  );
 }

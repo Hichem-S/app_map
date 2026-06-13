@@ -75,6 +75,14 @@ class NotificationService extends ChangeNotifier {
           productName: msg['productName']    as String?,
           body:        msg['body']           as String?,
         );
+      } else if (msg['type'] == 'iot_scan') {
+        addIotScanNotification(
+          productName: msg['product_name'] as String?,
+          fromRoom:    msg['from_room']    as String?,
+          toRoom:      msg['room_name']    as String?,
+          scanType:    msg['scan_type']    as String? ?? 'rfid',
+          readerId:    msg['reader_id']    as String?,
+        );
       }
     } catch (_) {}
   }
@@ -117,6 +125,28 @@ class NotificationService extends ChangeNotifier {
       title:       'Équipement réformé',
       body:        body ?? '',
       productName: productName,
+      createdAt:   DateTime.now(),
+    );
+    _notifications.insert(0, n);
+    notifyListeners();
+  }
+
+  void addIotScanNotification({
+    String? productName,
+    String? fromRoom,
+    String? toRoom,
+    String scanType = 'rfid',
+    String? readerId,
+  }) {
+    final label = scanType == 'ble' ? 'BLE' : 'RFID';
+    final n = AppNotification(
+      id:          DateTime.now().microsecondsSinceEpoch.toString(),
+      type:        'iot_$scanType',
+      title:       'Détecté via $label',
+      body:        readerId != null ? 'Lecteur : $readerId' : '',
+      productName: productName,
+      fromRoom:    fromRoom,
+      toRoom:      toRoom,
       createdAt:   DateTime.now(),
     );
     _notifications.insert(0, n);

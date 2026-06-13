@@ -11,6 +11,7 @@ class WsService {
   static final _broadcast = StreamController<dynamic>.broadcast();
   static Stream<dynamic> get stream => _broadcast.stream;
 
+  // Token never goes in the URL — sent as first message after connect
   static String get _wsUrl => ApiService.baseUrl
       .replaceFirst(RegExp(r'^http'), 'ws')
       .replaceAll('/api', '');
@@ -27,9 +28,7 @@ class WsService {
     debugPrint('[WS] Connecting to $_wsUrl');
 
     try {
-      _channel = WebSocketChannel.connect(
-        Uri.parse('$_wsUrl?token=$token'),
-      );
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
 
       _sub = _channel!.stream.listen(
         (data) {
@@ -46,6 +45,9 @@ class WsService {
         },
         cancelOnError: false,
       );
+
+      // Authenticate via first message — token never touches the URL or logs
+      _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
 
       debugPrint('[WS] Connected ✅');
     } catch (e) {

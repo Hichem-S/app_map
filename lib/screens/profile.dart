@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/theme_provider.dart';
+import '../providers/language_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -35,7 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickAndUploadAvatar() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: AppColors.card(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
@@ -117,16 +118,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  String get _userName => _user?['name'] ?? '—';
-  String get _userEmail => _user?['email'] ?? '—';
-  String get _userRole => _user?['role'] ?? '—';
+  String get _userName => _user?['name'] ?? 'â€”';
+  String get _userEmail => _user?['email'] ?? 'â€”';
+  String get _userRole => _user?['role'] ?? 'â€”';
 
   @override
   Widget build(BuildContext context) {
     if (_loadingUser) {
-      return const Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      return Scaffold(
+        backgroundColor: AppColors.bg(context),
+        body: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
     return PopScope(
@@ -140,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       },
       child: Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -183,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Header ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildHeader(BuildContext context) {
     return Container(
@@ -354,7 +355,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Stats cards ───────────────────────────────────────────────────────────────
+  // â”€â”€ Stats cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildStatsSection() {
     final totalScans    = _stats?['total_scans']    ?? _scanHistory.length;
@@ -435,7 +436,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Institution card ──────────────────────────────────────────────────────────
+  // â”€â”€ Institution card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildInstitutionCard(BuildContext context) {
     return Container(
@@ -448,7 +449,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
+          Expanded(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -463,9 +465,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 4),
               Text(
                 'Higher Institute of Technological Studies',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 11),
               ),
             ],
+          ),
           ),
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/vueinstitut'),
@@ -487,7 +492,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Badges ────────────────────────────────────────────────────────────────────
+  // â”€â”€ Badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildBadgesSection() {
     final badges = [
@@ -576,7 +581,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Personal info ─────────────────────────────────────────────────────────────
+  // â”€â”€ Personal info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildPersonalInfoSection(BuildContext context) {
     return Column(
@@ -638,7 +643,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Recent activity ───────────────────────────────────────────────────────────
+  // â”€â”€ Recent activity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildRecentActivitySection(BuildContext context) {
     return Column(
@@ -693,7 +698,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item['name'] ?? '—',
+                                item['name'] ?? 'â€”',
                                 style: const TextStyle(
                                   fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH,
                                 ),
@@ -728,7 +733,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  // ── User change ───────────────────────────────────────────────────────────────
+  // â”€â”€ User change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildUserChangeSection(BuildContext context) {
     return Column(
@@ -759,7 +764,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Preferences ───────────────────────────────────────────────────────────────
+  // â”€â”€ Preferences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildPreferencesSection(BuildContext context) {
     return Column(
@@ -778,6 +783,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             setState(() {});
           },
         ),
+        const SizedBox(height: 10),
+        _buildLanguagePicker(context),
         const SizedBox(height: 10),
         _buildToggleItem(
           icon: Icons.dark_mode,
@@ -800,48 +807,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             setState(() => biometricEnabled = value);
           },
         ),
-        const SizedBox(height: 10),
-        _buildLanguageItem(),
       ],
     );
   }
 
-  Widget _buildLanguageItem() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.public, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Language', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                SizedBox(height: 2),
-                Text('English', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
-              ],
-            ),
-          ),
-          const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted, size: 16),
-        ],
-      ),
-    );
-  }
-
-  // ── Application ───────────────────────────────────────────────────────────────
+  // â”€â”€ Application â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildApplicationSection(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -918,7 +888,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.apartment_outlined,
             iconColor: AppColors.primary,
             title: 'Institute View',
-            subtitle: 'ISET Mahdia — all departments',
+            subtitle: 'ISET Mahdia â€” all departments',
             onTap: () => Navigator.pushNamed(context, '/vueinstitut'),
           ),
           const SizedBox(height: 10),
@@ -939,12 +909,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Roles, accounts, access control',
             onTap: () => Navigator.pushNamed(context, '/admin/users'),
           ),
+          const SizedBox(height: 10),
+          _buildNavigableItem(
+            icon: Icons.summarize_outlined,
+            iconColor: const Color(0xFF059669),
+            title: 'ISET Global Report',
+            subtitle: 'Download full inventory PDF — all departments',
+            onTap: () => _downloadIsetReport(),
+          ),
         ],
       ],
     );
   }
 
-  // ── Support ───────────────────────────────────────────────────────────────────
+  Future<void> _downloadIsetReport() async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Generating ISET report…'),
+      duration: Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+    try {
+      final path = await ApiService.downloadIsetReport();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(path != null
+            ? 'Report saved: ${path.split('/').last}'
+            : 'Download failed'),
+        backgroundColor: path != null ? const Color(0xFF059669) : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  // â”€â”€ Support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSupportSection(BuildContext context) {
     return Column(
@@ -964,7 +968,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.info_outline,
           iconColor: AppColors.textMuted,
           title: 'About',
-          subtitle: 'Smart Inventory v2.4 — ISET Mahdia',
+          subtitle: 'Smart Inventory v2.4 â€” ISET Mahdia',
           trailing: 'v2.4',
           onTap: () => _showAboutDialog(context),
         ),
@@ -972,7 +976,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── App info card ─────────────────────────────────────────────────────────────
+  // â”€â”€ App info card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildAppInfoCard(BuildContext context) {
     return Container(
@@ -1034,7 +1038,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Sign out ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSignOutButton(BuildContext context) {
     return SizedBox(
@@ -1092,7 +1096,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Shared list item widgets ──────────────────────────────────────────────────
+  // â”€â”€ Shared list item widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildCollapsibleItem({
     required IconData icon,
@@ -1135,6 +1139,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLanguagePicker(BuildContext context) {
+    final lang     = context.watch<LanguageProvider>();
+    final current  = lang.locale.languageCode;
+    final langs    = LanguageProvider.languages;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppColors.shadowMd,
+      ),
+      child: Row(children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.language_rounded, color: AppColors.primary, size: 22),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Language', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textH)),
+          Text('App display language', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        ])),
+        DropdownButton<String>(
+          value: current,
+          underline: const SizedBox.shrink(),
+          icon: const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.textMuted),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textH),
+          items: langs.map((l) => DropdownMenuItem<String>(
+            value: l['code']!,
+            child: Text('${l['flag']} ${l['native']}'),
+          )).toList(),
+          onChanged: (code) {
+            if (code != null) context.read<LanguageProvider>().setLanguage(code);
+          },
+        ),
+      ]),
     );
   }
 
@@ -1230,7 +1277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _sectionLabel(String text) => Text(
         text,
@@ -1243,12 +1290,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
   Widget _buildFooter() => const Text(
-        'Higher Institute of Technological Studies of Mahdia © 2026 — All rights reserved',
+        'Higher Institute of Technological Studies of Mahdia © 2026 â€” All rights reserved',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 11, color: AppColors.textMuted),
       );
 
-  // ── Edit profile sheet ────────────────────────────────────────────────────────
+  // â”€â”€ Edit profile sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showEditProfileSheet(BuildContext context) {
     final nameCtrl  = TextEditingController(text: _userName);
@@ -1256,7 +1303,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: AppColors.card(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
@@ -1320,7 +1367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── FAQ dialog ────────────────────────────────────────────────────────────────
+  // â”€â”€ FAQ dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showFaqDialog(BuildContext context) {
     showDialog(
@@ -1365,14 +1412,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── About dialog ─────────────────────────────────────────────────────────────
+  // â”€â”€ About dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showAboutDialog(BuildContext ctx) {
     showAboutDialog(
       context: ctx,
       applicationName: 'Smart Inventory ISET',
       applicationVersion: '2.4.0',
-      applicationLegalese: '© 2026 ISET Mahdia — All rights reserved',
+      applicationLegalese: '© 2026 ISET Mahdia â€” All rights reserved',
       children: [
         const SizedBox(height: 12),
         const Text(
@@ -1385,7 +1432,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ── Data classes ──────────────────────────────────────────────────────────────
+// â”€â”€ Data classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _BadgeItem {
   final String name;
@@ -1409,3 +1456,5 @@ class _FaqItem extends StatelessWidget {
     ]);
   }
 }
+
+

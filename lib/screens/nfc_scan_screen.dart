@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager/nfc_manager_android.dart';
@@ -102,12 +102,12 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     Navigator.pop(context, _tagInfo!.uid);
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -135,7 +135,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     );
   }
 
-  // ─── Waiting / error view ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Waiting / error view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildWaitingView() {
     final isError = _state == _ScanState.error;
@@ -200,7 +200,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     );
   }
 
-  // ─── Detected view ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Detected view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDetectedView() {
     final tag = _tagInfo!;
@@ -352,7 +352,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
   }
 }
 
-// ─── Tag info ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Tag info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _TagInfo {
   final String uid;
@@ -376,7 +376,7 @@ class _TagInfo {
     String? atqa;
     String? sakStr;
 
-    // ISO 14443-3A — most NFC stickers and cards
+    // ISO 14443-3A â€” most NFC stickers and cards
     final nfca = NfcAAndroid.from(tag);
     if (nfca != null) {
       final a = nfca.atqa;
@@ -414,7 +414,7 @@ class _TagInfo {
   }
 }
 
-// ─── Animated waiting dots ────────────────────────────────────────────────────
+// â”€â”€â”€ Animated waiting dots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _WaitingDots extends StatefulWidget {
   @override
@@ -458,3 +458,5 @@ class _WaitingDotsState extends State<_WaitingDots> {
     );
   }
 }
+
+
