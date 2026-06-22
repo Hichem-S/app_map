@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
@@ -29,7 +30,7 @@ class _ImportProductsScreenState extends State<ImportProductsScreen> {
     final file = res.files.first;
     if (file.bytes == null) return;
     setState(() {
-      _csvContent = String.fromCharCodes(file.bytes!);
+      _csvContent = utf8.decode(file.bytes!, allowMalformed: true);
       _fileName   = file.name;
       _result     = null;
     });
@@ -41,6 +42,15 @@ class _ImportProductsScreenState extends State<ImportProductsScreen> {
     try {
       final res = await ApiService.importProductsCSV(_csvContent!);
       if (!mounted) return;
+      if (res['success'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] ?? 'Import failed'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ));
+        setState(() => _uploading = false);
+        return;
+      }
       setState(() { _result = res['data'] as Map<String, dynamic>?; _uploading = false; });
     } catch (e) {
       if (mounted) {

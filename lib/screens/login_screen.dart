@@ -45,6 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
           '/verify-email',
           arguments: data['email'] as String? ?? _emailController.text.trim(),
         );
+      } else if (data['requiresApproval'] == true) {
+        _snack('Your account is pending admin approval. You\'ll be notified once approved.');
       } else {
         _snack(data['message'] ?? 'Login failed');
       }

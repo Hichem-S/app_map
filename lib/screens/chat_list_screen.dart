@@ -36,7 +36,7 @@ class Conversation {
       : id           = j['id']           as String,
         type         = j['type']         as String,
         name         = j['name']         as String?,
-        createdAt    = DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
+        createdAt    = (DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now()).toLocal(),
         lastMessage  = j['last_message'] as Map<String, dynamic>?,
         unreadCount  = (j['unread_count'] as num?)?.toInt() ?? 0,
         otherMembers = j['other_members'] as List<dynamic>? ?? [];
@@ -125,11 +125,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   String _relTime(DateTime dt) {
-    final d = DateTime.now().difference(dt);
-    if (d.inSeconds < 60)  return 'now';
-    if (d.inMinutes < 60)  return '${d.inMinutes}m';
-    if (d.inHours   < 24)  return '${d.inHours}h';
-    return '${d.inDays}d';
+    final local = dt.toLocal();
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
   }
 
   bool _isOnline(Conversation c) {
@@ -170,16 +173,58 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     itemCount: _convs.length,
                     separatorBuilder: (_, __) =>
                         const Divider(height: 1, indent: 74, color: AppColors.border),
-                    itemBuilder: (_, i) => _ConvTile(
-                      conv: _convs[i],
-                      online: _isOnline(_convs[i]),
-                      rel:    _relTime(_convs[i].lastMessage != null
-                          ? (DateTime.tryParse(
-                                  _convs[i].lastMessage!['created_at'] as String? ?? '') ??
-                              _convs[i].createdAt)
-                          : _convs[i].createdAt),
-                      onTap: () => _openChat(_convs[i]),
-                    ),
+                    itemBuilder: (_, i) {
+                      final conv = _convs[i];
+                      return Dismissible(
+                        key: Key(conv.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          color: const Color(0xFFEF4444),
+                          child: const Icon(Icons.delete_outline_rounded,
+                              color: Colors.white, size: 26),
+                        ),
+                        confirmDismiss: (_) async {
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Delete conversation'),
+                              content: const Text('This will permanently delete the conversation and all its messages.'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          ) ?? false;
+                        },
+                        onDismissed: (_) async {
+                          setState(() => _convs.removeAt(i));
+                          try {
+                            await ApiService.deleteConversation(conv.id);
+                          } catch (_) {
+                            if (mounted) _load();
+                          }
+                        },
+                        child: _ConvTile(
+                          conv: conv,
+                          online: _isOnline(conv),
+                          rel:    _relTime(conv.lastMessage != null
+                              ? ((DateTime.tryParse(
+                                      conv.lastMessage!['created_at'] as String? ?? '')
+                                  ?.toLocal()) ?? conv.createdAt)
+                              : conv.createdAt),
+                          onTap: () => _openChat(conv),
+                        ),
+                      );
+                    },
                   ),
                 ),
     );
@@ -219,15 +264,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => ChatScreen(conversation: c)),
-    ).then((_) {
-      // Reset unread count locally after returning
-      if (mounted) {
-        setState(() {
-          final idx = _convs.indexWhere((x) => x.id == c.id);
-          if (idx != -1) _convs[idx].unreadCount = 0;
-        });
-      }
-    });
+    ).then((_) => _load());
   }
 
   void _showNewConvSheet() {
@@ -260,9 +297,17 @@ class _ConvTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isGroup = conv.type == 'group';
+    final isGroup  = conv.type == 'group';
     final initials = conv.displayName.isNotEmpty ? conv.displayName[0].toUpperCase() : '?';
     final lastMsg  = conv.lastMessage?['content'] as String? ?? 'No messages yet';
+
+    String? avatarPath;
+    if (!isGroup && conv.otherMembers.isNotEmpty) {
+      avatarPath = (conv.otherMembers.first as Map<String, dynamic>)['avatar'] as String?;
+    }
+    final avatarUrl = (avatarPath != null && avatarPath.isNotEmpty)
+        ? ApiService.avatarUrl(avatarPath)
+        : null;
 
     return ListTile(
       onTap: onTap,
@@ -273,11 +318,14 @@ class _ConvTile extends StatelessWidget {
           backgroundColor: isGroup
               ? AppColors.primary.withOpacity(0.15)
               : AppColors.accent.withOpacity(0.15),
-          child: isGroup
-              ? const Icon(Icons.group_rounded, color: AppColors.primary, size: 26)
-              : Text(initials,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.primary)),
+          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+          child: avatarUrl != null
+              ? null
+              : isGroup
+                  ? const Icon(Icons.group_rounded, color: AppColors.primary, size: 26)
+                  : Text(initials,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.primary)),
         ),
         if (!isGroup && online)
           Positioned(

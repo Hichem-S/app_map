@@ -63,7 +63,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       final data = await ApiService.verifyEmail(_email, otp);
       if (!mounted) return;
       if (data['success'] == true) {
-        Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+        if (data['requiresApproval'] == true) {
+          // Account created but needs admin approval
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+          Future.delayed(Duration.zero, () {
+            if (mounted) _snack('Email verified! Your account is pending admin approval. You\'ll be notified once approved.');
+          });
+        } else {
+          Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+        }
       } else {
         _snack(data['message'] ?? 'Invalid or expired code');
       }

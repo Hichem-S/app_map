@@ -121,18 +121,13 @@ class _Dept {
 
 // ─── Zone layout constants ────────────────────────────────────────────────────
 
-const _kCols     = 3;
 const _kItemW    = 70.0;
 const _kItemH    = 56.0;
 const _kZonePadX = 12.0;
 const _kZonePadY = 10.0;
 const _kZoneHdrH = 36.0;
-const _kZoneW    = _kCols * _kItemW + 2 * _kZonePadX;
+const _kZoneW    = 3 * _kItemW + 2 * _kZonePadX;
 
-double _zoneH(int n) {
-  final rows = ((n < 1 ? 1 : n) + _kCols - 1) ~/ _kCols;
-  return _kZoneHdrH + _kZonePadY + rows * _kItemH + _kZonePadY;
-}
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
@@ -730,12 +725,8 @@ class _ZoneWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color  = dept.color;
-    // Dynamic height: account for possible incoming item preview
-    final n      = room.products.length;
-    final height = _zoneH(n);
+    final color = dept.color;
 
-    // Border style based on move state
     final borderColor = isSource
         ? _accent
         : isDropTarget
@@ -750,129 +741,125 @@ class _ZoneWidget extends StatelessWidget {
 
     return GestureDetector(
       onTap: onRoomTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width:  _kZoneW,
-        height: height,
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: borderWidth),
-          boxShadow: isDropTarget
-              ? [BoxShadow(
-                  color: const Color(0xFF22C55E).withOpacity(0.2),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3))]
-              : isSource
-                  ? [BoxShadow(
-                      color: _accent.withOpacity(0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 3))]
-                  : [BoxShadow(
-                      color: color.withOpacity(0.07),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Zone header
-            Container(
-              height: _kZoneHdrH,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: isDropTarget
-                    ? const Color(0xFF22C55E).withOpacity(0.15)
-                    : isSource
-                        ? _accent.withOpacity(0.15)
-                        : color.withOpacity(0.13),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(10)),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: _kZoneW,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: borderWidth),
+            boxShadow: isDropTarget
+                ? [BoxShadow(
+                    color: const Color(0xFF22C55E).withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3))]
+                : isSource
+                    ? [BoxShadow(
+                        color: _accent.withOpacity(0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3))]
+                    : [BoxShadow(
+                        color: color.withOpacity(0.07),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Zone header
+              Container(
+                height: _kZoneHdrH,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: isDropTarget
+                      ? const Color(0xFF22C55E).withOpacity(0.15)
+                      : isSource
+                          ? _accent.withOpacity(0.15)
+                          : color.withOpacity(0.13),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(10)),
+                ),
+                child: Row(children: [
+                  if (isDropTarget) ...[
+                    const Icon(Icons.download_rounded,
+                        size: 13, color: Color(0xFF22C55E)),
+                    const SizedBox(width: 4),
+                  ] else if (isSource) ...[
+                    const Icon(Icons.upload_rounded,
+                        size: 13, color: _accent),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      '${dept.code} – ${room.name}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDropTarget
+                              ? const Color(0xFF16A34A)
+                              : isSource
+                                  ? _accent
+                                  : color),
+                    ),
+                  ),
+                  Text('${room.products.length}',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: (isDropTarget
+                                  ? const Color(0xFF22C55E)
+                                  : color)
+                              .withOpacity(0.6),
+                          fontWeight: FontWeight.w600)),
+                ]),
               ),
-              child: Row(children: [
-                // Drop target indicator icon
-                if (isDropTarget) ...[
-                  const Icon(Icons.download_rounded,
-                      size: 13, color: Color(0xFF22C55E)),
-                  const SizedBox(width: 4),
-                ] else if (isSource) ...[
-                  const Icon(Icons.upload_rounded,
-                      size: 13, color: _accent),
-                  const SizedBox(width: 4),
-                ],
-                Expanded(
-                  child: Text(
-                    '${dept.code} – ${room.name}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDropTarget
-                            ? const Color(0xFF16A34A)
-                            : isSource
-                                ? _accent
-                                : color),
+              // Content: dots or empty/drop placeholder
+              if (room.products.isEmpty)
+                SizedBox(
+                  width: _kZoneW,
+                  height: _kItemH + _kZonePadY * 2,
+                  child: Center(
+                    child: isDropTarget
+                        ? Column(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.add_circle_outline,
+                                size: 22,
+                                color: const Color(0xFF22C55E).withOpacity(0.6)),
+                            const SizedBox(height: 4),
+                            Text('Drop here',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: const Color(0xFF22C55E).withOpacity(0.7),
+                                    fontWeight: FontWeight.w600)),
+                          ])
+                        : Text('Empty',
+                            style: TextStyle(
+                                fontSize: 11, color: color.withOpacity(0.35))),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: _kZonePadX, vertical: _kZonePadY),
+                  child: Wrap(
+                    children: room.products
+                        .map((p) => _DotMarker(
+                              prod:     p,
+                              search:   search,
+                              moveMode: moveMode,
+                              selected: movingProd?.id == p.id,
+                              onTap:    () => onProdTap(p),
+                            ))
+                        .toList(),
                   ),
                 ),
-                Text('${room.products.length}',
-                    style: TextStyle(
-                        fontSize: 10,
-                        color: (isDropTarget
-                                ? const Color(0xFF22C55E)
-                                : color)
-                            .withOpacity(0.6),
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ),
-            // Dots or "Drop here" placeholder
-            Expanded(
-              child: isDropTarget && room.products.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_circle_outline,
-                              size: 22,
-                              color: const Color(0xFF22C55E).withOpacity(0.6)),
-                          const SizedBox(height: 4),
-                          Text('Drop here',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: const Color(0xFF22C55E)
-                                      .withOpacity(0.7),
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    )
-                  : room.products.isEmpty
-                      ? Center(
-                          child: Text(
-                            isDropTarget ? 'Drop here' : 'Empty',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: isDropTarget
-                                    ? const Color(0xFF22C55E).withOpacity(0.7)
-                                    : color.withOpacity(0.35)),
-                          ),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: _kZonePadX, vertical: _kZonePadY),
-                          child: Wrap(
-                            children: room.products
-                                .map((p) => _DotMarker(
-                                      prod:     p,
-                                      search:   search,
-                                      moveMode: moveMode,
-                                      selected: movingProd?.id == p.id,
-                                      onTap:    () => onProdTap(p),
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -897,13 +884,14 @@ String _roleLabel(String? role) => switch (role) {
 
 String _timeAgo(String iso) {
   try {
-    final dt   = DateTime.parse(iso).toLocal();
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours   < 24) return '${diff.inHours}h ago';
-    if (diff.inDays    <  7) return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final local = DateTime.parse(iso).toLocal();
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   } catch (_) {
     return '';
   }

@@ -673,7 +673,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (index > 0) const SizedBox(height: 8),
                 Builder(builder: (context) {
                   final item = _scanHistory[index] as Map<String, dynamic>;
-                  final scannedAt = DateTime.tryParse(item['scanned_at'] ?? '');
+                  final scannedAt = DateTime.tryParse(item['scanned_at'] ?? '')?.toLocal();
                   final timeAgo = scannedAt != null ? _timeAgo(scannedAt) : '';
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -725,12 +725,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1)  return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24)   return '${diff.inHours}h ago';
-    if (diff.inDays < 7)     return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final local = dt.toLocal();
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   }
 
   // â”€â”€ User change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

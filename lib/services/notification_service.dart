@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../models/app_notification.dart';
 import '../services/api_service.dart';
 import 'ws_service.dart';
+import '../main.dart' show rootScaffoldKey, rootNavigatorKey;
 
 class NotificationService extends ChangeNotifier {
   static final NotificationService instance = NotificationService._();
@@ -83,6 +84,12 @@ class NotificationService extends ChangeNotifier {
           scanType:    msg['scan_type']    as String? ?? 'rfid',
           readerId:    msg['reader_id']    as String?,
         );
+      } else if (msg['type'] == 'tracker_zone_alert') {
+        addZoneAlertNotification(
+          productId:   msg['productId']   as String?,
+          productName: msg['productName'] as String?,
+          distanceKm:  msg['distanceKm']  as String?,
+        );
       }
     } catch (_) {}
   }
@@ -151,6 +158,64 @@ class NotificationService extends ChangeNotifier {
     );
     _notifications.insert(0, n);
     notifyListeners();
+  }
+
+  void addZoneAlertNotification({
+    String? productId,
+    String? productName,
+    String? distanceKm,
+  }) {
+    final n = AppNotification(
+      id:          DateTime.now().microsecondsSinceEpoch.toString(),
+      type:        'tracker_zone_alert',
+      title:       'AirTag out of zone',
+      body:        '${productName ?? 'Device'} is ${distanceKm ?? '?'} km from ISET',
+      productId:   productId,
+      productName: productName,
+      createdAt:   DateTime.now(),
+    );
+    _notifications.insert(0, n);
+    notifyListeners();
+
+    // Show a visible banner over whatever screen is currently open
+    rootScaffoldKey.currentState?.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 8),
+        backgroundColor: const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        content: Row(
+          children: [
+            const Icon(Icons.location_off_rounded, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('AirTag out of zone!',
+                      style: TextStyle(fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 13)),
+                  Text(
+                    '${productName ?? 'Device'} — ${distanceKm ?? '?'} km from ISET',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'View',
+          textColor: Colors.white,
+          onPressed: () {
+            rootScaffoldKey.currentState?.hideCurrentSnackBar();
+            rootNavigatorKey.currentState?.pushNamed('/tracker');
+          },
+        ),
+      ),
+    );
   }
 
   void markAllRead() {

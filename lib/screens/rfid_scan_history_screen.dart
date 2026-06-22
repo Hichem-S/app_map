@@ -14,7 +14,7 @@ class _RfidScanHistoryScreenState extends State<RfidScanHistoryScreen> {
   List<Map<String, dynamic>> _scans = [];
   bool _loading = true;
   String? _error;
-  String _filter = 'all'; // all | rfid | ble
+  String _filter = 'rfid';
   String _search = '';
   int _total = 0;
 
@@ -65,14 +65,15 @@ class _RfidScanHistoryScreenState extends State<RfidScanHistoryScreen> {
 
   String _timeAgo(String? iso) {
     if (iso == null) return '';
-    final dt = DateTime.tryParse(iso)?.toLocal();
-    if (dt == null) return '';
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return DateFormat('dd MMM yyyy, HH:mm').format(dt);
+    final local = DateTime.tryParse(iso)?.toLocal();
+    if (local == null) return '';
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   }
 
   @override
@@ -92,7 +93,7 @@ class _RfidScanHistoryScreenState extends State<RfidScanHistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'IoT Scan History',
+              'RFID Scan History',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -153,8 +154,6 @@ class _RfidScanHistoryScreenState extends State<RfidScanHistoryScreen> {
                 _chip('All', 'all'),
                 const SizedBox(width: 8),
                 _chip('RFID', 'rfid'),
-                const SizedBox(width: 8),
-                _chip('BLE', 'ble'),
               ],
             ),
           ),
@@ -254,7 +253,7 @@ class _RfidScanHistoryScreenState extends State<RfidScanHistoryScreen> {
             const Text('No scan events yet',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textH)),
             const SizedBox(height: 6),
-            const Text('RFID and BLE events will appear here\nonce the ESP32 reader detects tags.',
+            const Text('RFID events will appear here\nonce the ESP32 reader detects tags.',
                 style: TextStyle(fontSize: 13, color: AppColors.textMuted), textAlign: TextAlign.center),
           ],
         ),

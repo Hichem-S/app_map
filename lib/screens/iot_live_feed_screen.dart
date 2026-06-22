@@ -498,9 +498,7 @@ class _AssignSheetState extends State<_AssignSheet> {
 
   Future<void> _loadProducts() async {
     try {
-      // Load products in the room where the tag was scanned
-      final res  = await ApiService.getProducts(
-          limit: 200, roomId: widget.scan.roomId);
+      final res  = await ApiService.getProducts(limit: 200);
       if (!mounted) return;
       final rows = (res['data'] as List<dynamic>? ?? []);
       final isBle = widget.scan.scanType == 'ble';
@@ -601,7 +599,7 @@ class _AssignSheetState extends State<_AssignSheet> {
               ),
             ]),
             const SizedBox(height: 4),
-            const Text('Showing products currently in this room',
+            const Text('Showing all untagged products',
                 style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
             const SizedBox(height: 12),
             // Search

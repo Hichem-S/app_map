@@ -64,7 +64,7 @@ class AccessoryListItemState extends State<AccessoryListItem> {
         // Format published date in a human readable way
         String? dateString = widget.accessory.datePublished != null &&
                 widget.accessory.datePublished != DateTime(1970)
-            ? '\n${DateFormat.yMMMd(Platform.localeName).format(widget.accessory.datePublished!)} ${DateFormat.jm(Platform.localeName).format(widget.accessory.datePublished!)}'
+            ? '\n${_relativeDate(widget.accessory.datePublished!)}'
             : '';
 
         return AnimatedContainer(
@@ -120,4 +120,15 @@ class AccessoryListItemState extends State<AccessoryListItem> {
         return const SizedBox(width: 15);
     }
   }
+}
+
+String _relativeDate(DateTime dt) {
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+  if (diff.inSeconds < 60) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays == 1) return 'Yesterday ${DateFormat.jm().format(dt)}';
+  if (diff.inDays < 7) return '${diff.inDays} days ago';
+  return '${DateFormat.MMMd().format(dt)} ${DateFormat.jm().format(dt)}';
 }

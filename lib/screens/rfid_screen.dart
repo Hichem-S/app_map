@@ -1,9 +1,8 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_manager/nfc_manager_android.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
+import '../services/nfc_service.dart';
 import '../utils/app_colors.dart';
 import 'product_detail_screen.dart';
 
@@ -22,6 +21,7 @@ class _RfidScreenState extends State<RfidScreen>
   String? _errorMessage;
   String? _scannedUid;
   Product? _foundProduct;
+  StreamSubscription<String>? _nfcSub;
 
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
@@ -36,70 +36,31 @@ class _RfidScreenState extends State<RfidScreen>
     _pulseAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
-    _startSession();
+    _startListening();
   }
 
   @override
   void dispose() {
+    _nfcSub?.cancel();
     _pulseCtrl.dispose();
-    NfcManager.instance.stopSession().catchError((_) {});
     super.dispose();
   }
 
-  Future<void> _startSession() async {
+  void _startListening() {
     setState(() {
       _state = _ScreenState.scanning;
       _scannedUid = null;
       _foundProduct = null;
       _errorMessage = null;
     });
-
-    final availability = await NfcManager.instance.checkAvailability();
-    if (!mounted) return;
-
-    if (availability != NfcAvailability.enabled) {
-      setState(() {
-        _state = _ScreenState.error;
-        _errorMessage = availability == NfcAvailability.disabled
-            ? 'NFC is disabled.\nPlease enable NFC in Settings.'
-            : 'NFC is not available on this device.';
-      });
-      return;
-    }
-
-    try {
-      await NfcManager.instance.startSession(
-        pollingOptions: {
-          NfcPollingOption.iso14443,
-          NfcPollingOption.iso15693,
-          NfcPollingOption.iso18092,
-        },
-        onDiscovered: (NfcTag tag) async {
-          final uid = _extractUid(tag);
-          await NfcManager.instance.stopSession();
-          if (!mounted) return;
-          setState(() { _state = _ScreenState.looking; _scannedUid = uid; });
-          await _lookupProduct(uid);
-        },
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _state = _ScreenState.error;
-          _errorMessage = 'Could not start NFC session: $e';
-        });
-      }
-    }
-  }
-
-  String _extractUid(NfcTag tag) {
-    final androidTag = NfcTagAndroid.from(tag);
-    if (androidTag != null && androidTag.id.isNotEmpty) {
-      return androidTag.id
-          .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-          .join(':');
-    }
-    return 'Unknown';
+    _nfcSub?.cancel();
+    _nfcSub = NfcService.tagStream.listen((uid) {
+      if (_state != _ScreenState.scanning) return;
+      setState(() { _state = _ScreenState.looking; _scannedUid = uid; });
+      _lookupProduct(uid);
+    }, onError: (e) {
+      if (mounted) setState(() { _state = _ScreenState.error; _errorMessage = '$e'; });
+    });
   }
 
   Future<void> _lookupProduct(String uid) async {
@@ -422,7 +383,7 @@ class _RfidScreenState extends State<RfidScreen>
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _startSession,
+              onPressed: _startListening,
               icon: const Icon(Icons.nfc_rounded, size: 18, color: AppColors.textBody),
               label: const Text('Scan Another Tag',
                   style: TextStyle(color: AppColors.textBody, fontSize: 14)),
@@ -474,17 +435,17 @@ class _RfidScreenState extends State<RfidScreen>
               ),
             const SizedBox(height: 12),
             const Text(
-              'No item is registered with this RFID tag.\nAssign this tag to an item from its detail screen.',
+              'No item is linked to this tag.\nAssign it to an existing item now.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: AppColors.textBody, height: 1.6),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _startSession,
-                icon: const Icon(Icons.nfc_rounded, size: 20),
-                label: const Text('Scan Again',
+                onPressed: _assignToItem,
+                icon: const Icon(Icons.link_rounded, size: 20),
+                label: const Text('Assign to Item',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6D28D9),
@@ -495,10 +456,68 @@ class _RfidScreenState extends State<RfidScreen>
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _startListening,
+                icon: const Icon(Icons.nfc_rounded, size: 18, color: AppColors.textBody),
+                label: const Text('Scan Again',
+                    style: TextStyle(color: AppColors.textBody, fontSize: 14)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _assignToItem() async {
+    if (_scannedUid == null) return;
+    List<dynamic> products = [];
+    try {
+      final res = await ApiService.getProducts();
+      products = (res['data'] as List?) ?? [];
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load products')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProductPickerSheet(products: products),
+    );
+    if (picked == null || !mounted) return;
+
+    try {
+      final res = await ApiService.assignRfidTag(picked['id'] as String, rfidTag: _scannedUid);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Tag assigned to “${picked['name']}”'),
+          backgroundColor: const Color(0xFF16A34A),
+        ));
+        _startListening();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] as String? ?? 'Assignment failed'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
 
   // â”€â”€â”€ Error view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -530,7 +549,7 @@ class _RfidScreenState extends State<RfidScreen>
             ),
             const SizedBox(height: 40),
             ElevatedButton.icon(
-              onPressed: _startSession,
+              onPressed: _startListening,
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
@@ -585,6 +604,149 @@ class _RfidScreenState extends State<RfidScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Product picker bottom sheet ────────────────────────────────────────────
+
+class _ProductPickerSheet extends StatefulWidget {
+  final List<dynamic> products;
+  const _ProductPickerSheet({required this.products});
+
+  @override
+  State<_ProductPickerSheet> createState() => _ProductPickerSheetState();
+}
+
+class _ProductPickerSheetState extends State<_ProductPickerSheet> {
+  final _search = TextEditingController();
+  List<dynamic> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.products;
+    _search.addListener(_filter);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _filter() {
+    final q = _search.text.toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? widget.products
+          : widget.products.where((p) {
+              final name = (p['name'] as String? ?? '').toLowerCase();
+              final sku  = (p['sku']  as String? ?? '').toLowerCase();
+              return name.contains(q) || sku.contains(q);
+            }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text('Select Item to Link',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                            color: AppColors.textH)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textMuted),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search by name or SKU…',
+                  prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.bgMuted,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? const Center(child: Text('No items found',
+                      style: TextStyle(color: AppColors.textMuted)))
+                  : ListView.separated(
+                      controller: controller,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                      itemBuilder: (_, i) {
+                        final p = _filtered[i] as Map<String, dynamic>;
+                        final hasTag = (p['rfid_tag'] as String?)?.isNotEmpty == true;
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          leading: Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.bgMuted,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.inventory_2_outlined,
+                                color: AppColors.textMuted, size: 22),
+                          ),
+                          title: Text(p['name'] as String? ?? '',
+                              style: const TextStyle(fontSize: 14,
+                                  fontWeight: FontWeight.w600, color: AppColors.textH)),
+                          subtitle: Text(p['sku'] as String? ?? '',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                          trailing: hasTag
+                              ? const Tooltip(
+                                  message: 'Already has a tag',
+                                  child: Icon(Icons.nfc_rounded,
+                                      size: 18, color: Color(0xFFF59E0B)))
+                              : null,
+                          onTap: () => Navigator.pop(context, p),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

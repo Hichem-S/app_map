@@ -82,7 +82,7 @@ class ApiService {
       body: jsonEncode({'email': email, 'otp': otp}),
     );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (data['success'] == true) {
+    if (data['success'] == true && data['data'] != null) {
       await saveTokens(
         data['data']['accessToken'],
         data['data']['refreshToken'],
@@ -397,6 +397,14 @@ class ApiService {
     if (res.statusCode != 200) return [];
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return (data['data'] as List<dynamic>?) ?? [];
+  }
+
+  static Future<Map<String, dynamic>> getRoom(String roomId) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/departments/rooms/$roomId'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   static Future<List<dynamic>> getDepartmentRooms(String departmentId) async {
@@ -1130,6 +1138,13 @@ class ApiService {
   static Future<void> markAsRead(String conversationId) async {
     await http.patch(
       Uri.parse('$baseUrl/messages/conversations/$conversationId/read'),
+      headers: await _authHeaders(),
+    );
+  }
+
+  static Future<void> deleteConversation(String conversationId) async {
+    await http.delete(
+      Uri.parse('$baseUrl/messages/conversations/$conversationId'),
       headers: await _authHeaders(),
     );
   }

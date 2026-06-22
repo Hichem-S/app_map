@@ -46,6 +46,11 @@ import 'tracker/accessory/accessory_registry.dart';
 import 'tracker/location/location_model.dart';
 import 'tracker/preferences/user_preferences_model.dart';
 
+final GlobalKey<ScaffoldMessengerState> rootScaffoldKey =
+    GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<NavigatorState> rootNavigatorKey =
+    GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Settings.init();
@@ -77,6 +82,8 @@ class MyApp extends StatelessWidget {
     return Consumer2<ThemeProvider, LanguageProvider>(
       builder: (context, themeProvider, langProvider, child) {
         return MaterialApp(
+          scaffoldMessengerKey: rootScaffoldKey,
+          navigatorKey: rootNavigatorKey,
           title: 'Smart Inventory',
           debugShowCheckedModeBanner: false,
           theme: themeProvider.currentTheme,
@@ -104,10 +111,10 @@ class MyApp extends StatelessWidget {
             '/home': (context) => const HomeScreen(),
             '/qrscanner': (context) => const QRScannerScreen(),
             '/rfidscanner': (context) => const RfidScreen(),
-            '/iot-feed':    (context) => const IotLiveFeedScreen(),
+            '/iot-feed':    (context) => const RoleGuard(roles: ['admin', 'technicien'], child: IotLiveFeedScreen()),
             '/chat':        (context) => const ChatListScreen(),
             '/ai':          (context) => const AiQueryScreen(),
-            '/maintenance': (context) => const MaintenanceScreen(),
+            '/maintenance': (context) => const RoleGuard(roles: ['admin', 'technicien'], child: MaintenanceScreen()),
             '/blescanner': (context) => const BleScreen(),
             '/addproduct': (context) => const RoleGuard(
                   roles: ['magazinier'],
@@ -152,15 +159,15 @@ class MyApp extends StatelessWidget {
             '/onboarding':       (context) => const OnboardingScreen(),
             '/analytics':        (context) => const AnalyticsScreen(),
             '/import-products':  (context) => const RoleGuard(
-                  roles: ['admin', 'technicien'],
+                  roles: ['admin', 'magazinier'],
                   child: ImportProductsScreen(),
                 ),
             '/forgot-password':    (context) => const ForgotPasswordScreen(),
             '/reset-password':     (context) => const ResetPasswordScreen(),
             '/verify-email':       (context) => const VerifyEmailScreen(),
-            '/rfid-scan-history':    (context) => const RfidScanHistoryScreen(),
-            '/tracker-management':   (context) => const TrackerManagementScreen(),
-            '/ble-proximity':        (context) => const BleProximityScreen(),
+            '/rfid-scan-history':  (context) => const RoleGuard(roles: ['admin', 'technicien'], child: RfidScanHistoryScreen()),
+            '/tracker-management': (context) => const RoleGuard(roles: ['admin', 'technicien'], child: TrackerManagementScreen()),
+            '/ble-proximity':      (context) => const RoleGuard(roles: ['admin', 'technicien'], child: BleProximityScreen()),
           },
         );
       },

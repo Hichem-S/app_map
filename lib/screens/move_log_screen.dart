@@ -428,8 +428,11 @@ class _MoveCard extends StatelessWidget {
     }
   }
 
-  Color get _moverColor => _mlRoleColor(item['moved_by_role']?.toString());
-  String get _moverLabel => _mlRoleLabel(item['moved_by_role']?.toString());
+  bool get _isRfidMove => item['move_source']?.toString() == 'rfid';
+  Color get _moverColor => _isRfidMove
+      ? const Color(0xFFF59E0B)
+      : _mlRoleColor(item['moved_by_role']?.toString());
+  String get _moverLabel => _isRfidMove ? 'RFID' : _mlRoleLabel(item['moved_by_role']?.toString());
 
   @override
   Widget build(BuildContext context) {
@@ -442,8 +445,10 @@ class _MoveCard extends StatelessWidget {
     final roomName    = item['room_name']?.toString() ?? 'Unknown room';
     final deptCode    = item['dept_code']?.toString() ?? '';
     final deptName    = item['dept_name']?.toString() ?? '';
-    final movedByName = item['moved_by_name']?.toString() ?? 'Unknown';
+    final movedByName = _isRfidMove ? 'ESP32' : (item['moved_by_name']?.toString() ?? 'Unknown');
     final timeStr     = _mlTimeAgo(item['last_moved_at']?.toString() ?? '');
+    final fromRoom    = item['from_room']?.toString();
+    final toRoom      = item['to_room']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -516,27 +521,44 @@ class _MoveCard extends StatelessWidget {
                       const Icon(Icons.location_on_outlined,
                           size: 13, color: _muted),
                       const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                            color: deptColor,
-                            borderRadius: BorderRadius.circular(5)),
-                        child: Text(deptCode,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                      const SizedBox(width: 6),
+                      if (deptCode.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: deptColor,
+                              borderRadius: BorderRadius.circular(5)),
+                          child: Text(deptCode,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       Flexible(
-                        child: Text(roomName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF475569))),
+                        child: fromRoom != null && toRoom != null && fromRoom != toRoom
+                            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                Flexible(child: Text(fromRoom,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)))),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Icon(Icons.arrow_forward_rounded, size: 12, color: _muted),
+                                ),
+                                Flexible(child: Text(toRoom,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)))),
+                              ])
+                            : Text(toRoom ?? roomName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569))),
                       ),
                       if (deptName.isNotEmpty) ...[
                         const SizedBox(width: 4),
@@ -576,15 +598,17 @@ class _MoveCard extends StatelessWidget {
                               width: 1.5),
                         ),
                         child: Center(
-                          child: Text(
-                            movedByName.isNotEmpty
-                                ? movedByName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: moverColor),
-                          ),
+                          child: _isRfidMove
+                              ? Icon(Icons.nfc_rounded, size: 12, color: moverColor)
+                              : Text(
+                                  movedByName.isNotEmpty
+                                      ? movedByName[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: moverColor),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -640,13 +664,14 @@ String _mlRoleLabel(String? role) => switch (role) {
 String _mlTimeAgo(String iso) {
   if (iso.isEmpty) return '';
   try {
-    final dt   = DateTime.parse(iso).toLocal();
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours   < 24) return '${diff.inHours}h ago';
-    if (diff.inDays    <  7) return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final local = DateTime.parse(iso).toLocal();
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   } catch (_) {
     return '';
   }

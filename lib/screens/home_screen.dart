@@ -22,6 +22,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   int _notifCount    = 0;
+  int _refreshKey    = 0;
+
+  void _refreshWidgets() {
+    if (mounted) setState(() => _refreshKey++);
+  }
 
   @override
   void initState() {
@@ -69,29 +74,19 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(child: _buildSection(
               title: 'Overview',
               trailing: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/list_equipment'),
+                onTap: () => Navigator.pushNamed(context, '/list_equipment').then((_) => _refreshWidgets()),
                 child: Text(context.l10n.viewAll,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                       color: AppColors.primaryLight)),
               ),
-              child: const OverviewStats(),
+              child: OverviewStats(key: ValueKey('stats$_refreshKey')),
             )),
             SliverToBoxAdapter(child: _buildSection(
               title: 'Recent Activity',
               trailing: const Icon(Icons.trending_up_rounded,
                   color: AppColors.success, size: 20),
-              child: const RecentActivity(),
+              child: RecentActivity(key: ValueKey('ra$_refreshKey')),
             )),
-            SliverToBoxAdapter(child: _buildSection(
-              title: 'Recent Scans',
-              trailing: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/qrscanner'),
-                child: const Text('Scan', style: TextStyle(fontSize: 13,
-                    fontWeight: FontWeight.w600, color: AppColors.primary)),
-              ),
-              child: const _RecentScansWidget(),
-            )),
-            SliverToBoxAdapter(child: _buildToolsSection(auth)),
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         ),
@@ -105,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
             case 0: break;
             case 1:
               Navigator.pushNamed(context, '/list_equipment')
-                  .then((_) { if (mounted) setState(() => _selectedIndex = 0); });
+                  .then((_) { if (mounted) { setState(() => _selectedIndex = 0); _refreshWidgets(); } });
               break;
             case 3: _showMapsSheet(); break;
             case 6: _showToolsSheet(); break;
@@ -205,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.add,
                   onDark: true,
                   onTap: () =>
-                      Navigator.pushNamed(context, '/addproduct'),
+                      Navigator.pushNamed(context, '/addproduct').then((_) => _refreshWidgets()),
                 ),
               ],
             ],
@@ -217,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(children: [
             Expanded(
               child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/list_equipment'),
+                onTap: () => Navigator.pushNamed(context, '/list_equipment').then((_) => _refreshWidgets()),
                 child: Container(
                   height: 46,
                   decoration: BoxDecoration(
@@ -273,44 +268,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Maps picker sheet ────────────────────────────────────────────────────────
 
-  void _showMapsSheet() => _showSheet('Maps & Views', [
-    _mapTile(icon: Icons.map_outlined,        color: AppColors.success,
-        title: 'Equipment Map 2D', subtitle: 'Interactive 2D room layout',   route: '/equipmentmap'),
-    _mapTile(icon: Icons.view_in_ar_outlined, color: AppColors.primary,
-        title: 'Equipment Map 3D', subtitle: 'Interactive 3D room layout',   route: '/3dmap'),
-    _mapTile(icon: Icons.apartment_outlined,  color: AppColors.accent,
-        title: 'Institute View',   subtitle: 'ISET Mahdia — all departments', route: '/vueinstitut'),
-    _mapTile(icon: Icons.swap_horiz_rounded,  color: AppColors.warning,
-        title: 'Move Log',         subtitle: 'Track every item relocation',   route: '/movelog'),
-  ]);
+  void _showMapsSheet() {
+    final auth = context.read<AuthProvider>();
+    _showSheet('Maps & Views', [
+      _mapTile(icon: Icons.map_outlined,        color: AppColors.success,
+          title: 'Equipment Map 2D', subtitle: 'Interactive 2D room layout',    route: '/equipmentmap'),
+      _mapTile(icon: Icons.view_in_ar_outlined, color: AppColors.primary,
+          title: 'Equipment Map 3D', subtitle: 'Interactive 3D room layout',    route: '/3dmap'),
+      _mapTile(icon: Icons.apartment_outlined,  color: AppColors.accent,
+          title: 'Institute View',   subtitle: 'ISET Mahdia — all departments', route: '/vueinstitut'),
+      if (auth.canViewMoveLog)
+        _mapTile(icon: Icons.swap_horiz_rounded, color: AppColors.warning,
+            title: 'Move Log',       subtitle: 'Track every item relocation',   route: '/movelog'),
+    ]);
+  }
 
   void _showToolsSheet() {
     final auth = context.read<AuthProvider>();
     _showSheet('Tools', [
-      _mapTile(icon: Icons.bar_chart_rounded,          color: const Color(0xFF4F46E5),
+      _mapTile(icon: Icons.bar_chart_rounded,           color: const Color(0xFF4F46E5),
           title: 'Analytics',            subtitle: 'Charts, trends & warranty alerts', route: '/analytics'),
-      _mapTile(icon: Icons.upload_file_rounded,        color: const Color(0xFF0EA5E9),
-          title: 'Import Products',      subtitle: 'Bulk import from CSV',            route: '/import-products'),
-      _mapTile(icon: Icons.radar_rounded,              color: AppColors.error,
-          title: 'AirTag Tracker',       subtitle: 'Live location of equipment',      route: '/tracker'),
-      _mapTile(icon: Icons.manage_search_rounded,      color: const Color(0xFF059669),
-          title: 'Tracker Management',   subtitle: 'GPS map & battery status',        route: '/tracker-management'),
-      _mapTile(icon: Icons.sensors_rounded,            color: const Color(0xFF6D28D9),
-          title: 'IoT Live Feed',        subtitle: 'Real-time RFID zone events',      route: '/iot-feed'),
-      _mapTile(icon: Icons.nfc_rounded,                color: AppColors.primary,
-          title: 'RFID Scan History',    subtitle: 'RFID & BLE scan log',             route: '/rfid-scan-history'),
-      _mapTile(icon: Icons.bluetooth_searching_rounded, color: AppColors.accent,
-          title: 'BLE Proximity',        subtitle: 'Detect nearby inventory via BLE', route: '/ble-proximity'),
-      _mapTile(icon: Icons.auto_awesome_rounded,       color: const Color(0xFF0EA5E9),
-          title: 'AI Assistant',         subtitle: 'Ask anything about inventory',    route: '/ai'),
+      _mapTile(icon: Icons.upload_file_rounded,         color: const Color(0xFF0EA5E9),
+          title: 'Import Products',      subtitle: 'Bulk import from CSV',             route: '/import-products'),
+      if (auth.canViewTracker) ...[
+        _mapTile(icon: Icons.radar_rounded,             color: AppColors.error,
+            title: 'AirTag Tracker',     subtitle: 'Live location of equipment',       route: '/tracker'),
+        _mapTile(icon: Icons.manage_search_rounded,     color: const Color(0xFF059669),
+            title: 'Tracker Management', subtitle: 'GPS map & battery status',         route: '/tracker-management'),
+      ],
+      if (auth.canViewIoT) ...[
+        _mapTile(icon: Icons.sensors_rounded,           color: const Color(0xFF6D28D9),
+            title: 'IoT Live Feed',      subtitle: 'Real-time RFID zone events',       route: '/iot-feed'),
+        _mapTile(icon: Icons.nfc_rounded,               color: AppColors.primary,
+            title: 'RFID Scan History',  subtitle: 'RFID & BLE scan log',              route: '/rfid-scan-history'),
+        _mapTile(icon: Icons.bluetooth_searching_rounded, color: AppColors.accent,
+            title: 'BLE Proximity',      subtitle: 'Detect nearby inventory via BLE',  route: '/ble-proximity'),
+      ],
+      _mapTile(icon: Icons.auto_awesome_rounded,        color: const Color(0xFF0EA5E9),
+          title: 'AI Assistant',         subtitle: 'Ask anything about inventory',     route: '/ai'),
       _mapTile(icon: Icons.chat_bubble_outline_rounded, color: AppColors.primary,
-          title: 'Messages',             subtitle: 'Chat with team members',          route: '/chat'),
-      _mapTile(icon: Icons.build_rounded,              color: AppColors.error,
-          title: 'Maintenance',          subtitle: 'Schedule and track repairs',      route: '/maintenance'),
-      _mapTile(icon: Icons.swap_horiz_rounded,         color: const Color(0xFF059669),
-          title: 'Move Log',             subtitle: 'Track item movements',            route: '/movelog'),
+          title: 'Messages',             subtitle: 'Chat with team members',           route: '/chat'),
+      if (auth.canViewMaintenance)
+        _mapTile(icon: Icons.build_rounded,             color: AppColors.error,
+            title: 'Maintenance',        subtitle: 'Schedule and track repairs',       route: '/maintenance'),
+      if (auth.canViewMoveLog)
+        _mapTile(icon: Icons.swap_horiz_rounded,        color: const Color(0xFF059669),
+            title: 'Move Log',           subtitle: 'Track item movements',             route: '/movelog'),
       if (auth.canManageUsers)
-        _mapTile(icon: Icons.manage_accounts_rounded,  color: const Color(0xFF6D28D9),
+        _mapTile(icon: Icons.manage_accounts_rounded,   color: const Color(0xFF6D28D9),
             title: 'Manage Users',       subtitle: 'Roles, accounts & access control', route: '/admin/users'),
     ]);
   }
@@ -345,63 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildToolsSection(AuthProvider auth) {
-    final tools = [
-      _ToolItem(Icons.bar_chart_rounded,              const Color(0xFF4F46E5), 'Analytics',         '/analytics'),
-      _ToolItem(Icons.radar_rounded,                  const Color(0xFFEF4444), 'AirTag Tracker',    '/tracker'),
-      _ToolItem(Icons.manage_search_rounded,          const Color(0xFF059669), 'Tracker Map',       '/tracker-management'),
-      _ToolItem(Icons.bluetooth_searching_rounded,    const Color(0xFF0EA5E9), 'BLE Proximity',     '/ble-proximity'),
-      _ToolItem(Icons.nfc_rounded,                    AppColors.primary,       'RFID History',      '/rfid-scan-history'),
-      _ToolItem(Icons.sensors_rounded,                const Color(0xFF6D28D9), 'IoT Live Feed',     '/iot-feed'),
-      _ToolItem(Icons.build_rounded,                  const Color(0xFFDC2626), 'Maintenance',       '/maintenance'),
-      _ToolItem(Icons.auto_awesome_rounded,           const Color(0xFF0EA5E9), 'AI Assistant',      '/ai'),
-      _ToolItem(Icons.upload_file_rounded,            const Color(0xFF0EA5E9), 'Import CSV',        '/import-products'),
-      _ToolItem(Icons.chat_bubble_outline_rounded,    AppColors.primary,       'Messages',          '/chat'),
-      _ToolItem(Icons.swap_horiz_rounded,             const Color(0xFF059669), 'Move Log',          '/movelog'),
-      if (auth.canManageUsers)
-        _ToolItem(Icons.manage_accounts_rounded,      const Color(0xFF6D28D9), 'Manage Users',      '/admin/users'),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Tools', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700,
-            color: AppColors.textH)),
-        const SizedBox(height: 14),
-        GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.0,
-          children: tools.map((t) => GestureDetector(
-            onTap: () => Navigator.pushNamed(context, t.route),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.bgCard,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: t.color.withOpacity(0.15)),
-                boxShadow: AppColors.shadowMd,
-              ),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(width: 46, height: 46,
-                  decoration: BoxDecoration(color: t.color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(14)),
-                  child: Icon(t.icon, color: t.color, size: 24)),
-                const SizedBox(height: 8),
-                Text(t.label, textAlign: TextAlign.center,
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                      color: AppColors.textH, height: 1.2)),
-              ]),
-            ),
-          )).toList(),
-        ),
-      ]),
-    );
-  }
-
   Widget _mapTile({
     required IconData icon,
     required Color color,
@@ -412,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
-        Navigator.pushNamed(context, route);
+        Navigator.pushNamed(context, route).then((_) => _refreshWidgets());
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -573,120 +521,6 @@ class _IconBtn extends StatelessWidget {
   }
 }
 
-// ── Tool item model ───────────────────────────────────────────────────────────
-
-class _ToolItem {
-  final IconData icon;
-  final Color    color;
-  final String   label;
-  final String   route;
-  const _ToolItem(this.icon, this.color, this.label, this.route);
-}
-
-// ── Recent scans widget ───────────────────────────────────────────────────────
-
-class _RecentScansWidget extends StatefulWidget {
-  const _RecentScansWidget();
-  @override
-  State<_RecentScansWidget> createState() => _RecentScansWidgetState();
-}
-
-class _RecentScansWidgetState extends State<_RecentScansWidget> {
-  List<dynamic> _scans = [];
-  bool _loading = true;
-  final String _baseHost = ApiService.baseUrl.replaceAll('/api', '');
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    try {
-      final all = await ApiService.getScanHistory();
-      if (!mounted) return;
-      final scans = all
-          .where((s) => s['type'] == 'scan' || s['type'] == 'product_added')
-          .take(5)
-          .toList();
-      setState(() { _scans = scans; _loading = false; });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const SizedBox(height: 60,
-        child: Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2)));
-
-    if (_scans.isEmpty) return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-          boxShadow: AppColors.shadowMd),
-      child: const Row(children: [
-        Icon(Icons.qr_code_scanner_outlined, color: AppColors.textMuted, size: 20),
-        SizedBox(width: 10),
-        Text('No recent scans', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-      ]),
-    );
-
-    return Column(
-      children: _scans.map((s) {
-        final name    = s['name']         as String? ?? 'Unknown';
-        final sku     = s['sku']          as String? ?? '';
-        final photo   = s['photo_url']    as String?;
-        final time    = s['scanned_at']   as String? ?? '';
-        final prodId  = s['product_id']   as String?;
-        final dt      = DateTime.tryParse(time);
-        final timeStr = dt == null ? '' : _timeAgo(dt);
-
-        return GestureDetector(
-          onTap: prodId == null ? null : () async {
-            final res = await ApiService.getProduct(prodId);
-            if (res['success'] == true && context.mounted) {
-              final p = Product.fromJson(res['data'] as Map<String, dynamic>);
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProductDetailScreen(product: p)));
-            }
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-                boxShadow: AppColors.shadowMd),
-            child: Row(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: photo != null
-                    ? Image.network('$_baseHost$photo', width: 40, height: 40, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder())
-                    : _placeholder(),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textH)),
-                Text(sku, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-              ])),
-              Text(timeStr, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textMuted),
-            ]),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _placeholder() => Container(width: 40, height: 40, color: AppColors.bgMuted,
-      child: const Icon(Icons.devices_other, size: 20, color: AppColors.textMuted));
-
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1)  return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24)   return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-}
-
 // ── Alerts banner ────────────────────────────────────────────────────────────
 
 class _AlertsBanner extends StatefulWidget {
@@ -746,7 +580,7 @@ class _AlertsBannerState extends State<_AlertsBanner> {
               if (_critical > 0) '$_critical critical issue${_critical > 1 ? 's' : ''}',
               if (_lost > 0)     '$_lost lost item${_lost > 1 ? 's' : ''}',
             ].join(' · '),
-            onTap: () => Navigator.pushNamed(context, '/list_equipment'),
+            onTap: () => Navigator.pushNamed(context, '/list_equipment').then((_) => _load()),
           ),
         if (_warrantyExpiring > 0) ...[
           if (_critical > 0 || _lost > 0) const SizedBox(height: 8),
@@ -756,7 +590,7 @@ class _AlertsBannerState extends State<_AlertsBanner> {
             bg: const Color(0xFFFEF3C7),
             label: '$_warrantyExpiring warranty expiring'
                 '${_nearestWarranty != null ? ' · nearest $_nearestWarranty' : ''}',
-            onTap: () => Navigator.pushNamed(context, '/analytics'),
+            onTap: () => Navigator.pushNamed(context, '/analytics').then((_) => _load()),
           ),
         ],
       ]),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
 import '../services/api_service.dart';
@@ -31,13 +32,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _refresh() => setState(() {});
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return 'à l\'instant';
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24)   return 'il y a ${diff.inHours} h';
-    return 'il y a ${diff.inDays} j';
-  }
+  String _timeAgo(DateTime dt) => _fmtTime(dt.toLocal());
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +152,10 @@ class _NotifCard extends StatelessWidget {
       case 'transfer_approved':
       case 'transfer_rejected':
         return _TypeStyle(Icons.swap_horiz_rounded,     const Color(0xFF10B981), const Color(0xFFD1FAE5));
+      case 'account_pending':
+        return _TypeStyle(Icons.person_add_rounded,     const Color(0xFF4A7CFC), const Color(0xFFEEF2FF));
+      case 'tracker_zone_alert':
+        return _TypeStyle(Icons.location_off_rounded,   const Color(0xFFDC2626), const Color(0xFFFFEDED));
       default:
         return _TypeStyle(Icons.swap_horiz_rounded,     const Color(0xFF3B5BDB), const Color(0xFFEEF2FF));
     }
@@ -278,26 +277,46 @@ class _NotifCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Row(children: [
                         Icon(
-                          notif.type.startsWith('iot_')
-                              ? Icons.router_outlined
-                              : Icons.person_outline_rounded,
+                          notif.type == 'account_pending'
+                              ? Icons.person_add_outlined
+                              : notif.type == 'tracker_zone_alert'
+                                  ? Icons.location_off_outlined
+                                  : notif.type.startsWith('iot_')
+                                      ? Icons.router_outlined
+                                      : Icons.person_outline_rounded,
                           size: 12, color: Colors.black38),
                         const SizedBox(width: 4),
-                        Flexible(child: Text(notif.body,
+                        Flexible(child: Text(
+                            (notif.type == 'account_pending' || notif.type == 'tracker_zone_alert')
+                                ? (() { try { final m = jsonDecode(notif.body); return m['text'] as String? ?? notif.body; } catch (_) { return notif.body; } })()
+                                : notif.body,
                             maxLines: 2, overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 12,
                                 color: Colors.black54, fontWeight: FontWeight.w500))),
                       ]),
                     ],
+                    if (notif.type == 'account_pending') ...[
+                      const SizedBox(height: 10),
+                      _ApproveRejectButtons(notif: notif, onDone: onDismiss),
+                    ],
                     if (notif.productId != null) ...[
                       const SizedBox(height: 10),
                       Row(children: [
-                        _ActionBtn(
-                          label: 'View Item',
-                          icon: Icons.open_in_new_rounded,
-                          color: style.accent,
-                          onTap: () => _openProduct(context, notif),
-                        ),
+                        if (notif.type != 'tracker_zone_alert')
+                          _ActionBtn(
+                            label: 'View Item',
+                            icon: Icons.open_in_new_rounded,
+                            color: style.accent,
+                            onTap: () => _openProduct(context, notif),
+                          ),
+                        if (notif.type == 'tracker_zone_alert') ...[
+                          _ActionBtn(
+                            label: 'View Tracker',
+                            icon: Icons.location_searching_rounded,
+                            color: const Color(0xFFDC2626),
+                            onTap: () => Navigator.pushNamed(context, '/tracker'),
+                          ),
+                        ],
                         if (notif.type == 'product_critical' ||
                             notif.type == 'product_moved') ...[
                           const SizedBox(width: 8),
@@ -328,6 +347,16 @@ class _NotifCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _fmtTime(DateTime local) {
+  final now   = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day   = DateTime(local.year, local.month, local.day);
+  final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  if (day == today) return hm;
+  if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+  return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
 }
 
 Future<void> _openProduct(BuildContext context, AppNotification notif) async {
@@ -368,6 +397,81 @@ class _ActionBtn extends StatelessWidget {
       ]),
     ),
   );
+}
+
+// ─── Approve / Reject buttons for account_pending ────────────────────────────
+
+class _ApproveRejectButtons extends StatefulWidget {
+  final AppNotification notif;
+  final VoidCallback onDone;
+  const _ApproveRejectButtons({required this.notif, required this.onDone});
+
+  @override
+  State<_ApproveRejectButtons> createState() => _ApproveRejectButtonsState();
+}
+
+class _ApproveRejectButtonsState extends State<_ApproveRejectButtons> {
+  bool _loading = false;
+
+  String? get _pendingUserId {
+    try {
+      final m = jsonDecode(widget.notif.body) as Map;
+      return m['pendingUserId'] as String?;
+    } catch (_) { return null; }
+  }
+
+  Future<void> _approve() async {
+    final uid = _pendingUserId;
+    if (uid == null) return;
+    setState(() => _loading = true);
+    try {
+      await ApiService.toggleUserStatus(uid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account approved')));
+        widget.onDone();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _reject() async {
+    final uid = _pendingUserId;
+    if (uid == null) return;
+    setState(() => _loading = true);
+    try {
+      await ApiService.deleteUser(uid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account rejected')));
+        widget.onDone();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox(height: 24, width: 24,
+        child: CircularProgressIndicator(strokeWidth: 2));
+    return Row(children: [
+      _ActionBtn(
+        label: 'Approve',
+        icon: Icons.check_circle_outline_rounded,
+        color: const Color(0xFF22C55E),
+        onTap: _approve,
+      ),
+      const SizedBox(width: 8),
+      _ActionBtn(
+        label: 'Reject',
+        icon: Icons.cancel_outlined,
+        color: const Color(0xFFEF4444),
+        onTap: _reject,
+      ),
+    ]);
+  }
 }
 
 // ─── Type style helper ────────────────────────────────────────────────────────

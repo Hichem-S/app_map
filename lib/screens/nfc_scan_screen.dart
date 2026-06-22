@@ -1,7 +1,6 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_manager/nfc_manager_android.dart';
+import '../services/nfc_service.dart';
 import '../utils/app_colors.dart';
 
 enum _ScanState { waiting, detected, error }
@@ -18,6 +17,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
   _ScanState _state = _ScanState.waiting;
   String? _errorMessage;
   _TagInfo? _tagInfo;
+  StreamSubscription<String>? _nfcSub;
 
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
@@ -32,69 +32,29 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     _pulseAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
-    _startSession();
+    _startListening();
   }
 
   @override
   void dispose() {
+    _nfcSub?.cancel();
     _pulseCtrl.dispose();
-    NfcManager.instance.stopSession().catchError((_) {});
     super.dispose();
   }
 
-  Future<void> _startSession() async {
-    final availability = await NfcManager.instance.checkAvailability();
-    if (!mounted) return;
-
-    if (availability != NfcAvailability.enabled) {
-      setState(() {
-        _state = _ScanState.error;
-        _errorMessage = availability == NfcAvailability.disabled
-            ? 'NFC is disabled on this device.\nPlease enable NFC in Settings.'
-            : 'NFC unavailable.\nEnable NFC in Settings → Connected devices → NFC, or your device may not support it.';
-      });
-      return;
-    }
-
-    setState(() { _state = _ScanState.waiting; });
-
-    try {
-      await NfcManager.instance.startSession(
-        pollingOptions: {
-          NfcPollingOption.iso14443,
-          NfcPollingOption.iso15693,
-          NfcPollingOption.iso18092,
-        },
-        onDiscovered: (NfcTag tag) async {
-          try {
-            final info = _TagInfo.fromTag(tag);
-            await NfcManager.instance.stopSession();
-            if (mounted) setState(() { _tagInfo = info; _state = _ScanState.detected; });
-          } catch (e) {
-            await NfcManager.instance.stopSession();
-            if (mounted) {
-              setState(() {
-                _state = _ScanState.error;
-                _errorMessage = 'Failed to read tag: $e';
-              });
-            }
-          }
-        },
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _state = _ScanState.error;
-          _errorMessage = 'Could not start NFC session: $e';
-        });
-      }
-    }
+  void _startListening() {
+    setState(() { _state = _ScanState.waiting; _tagInfo = null; _errorMessage = null; });
+    _nfcSub?.cancel();
+    _nfcSub = NfcService.tagStream.listen((uid) {
+      if (_state != _ScanState.waiting) return;
+      if (mounted) setState(() { _tagInfo = _TagInfo(uid: uid); _state = _ScanState.detected; });
+    }, onError: (e) {
+      if (mounted) setState(() { _state = _ScanState.error; _errorMessage = '$e'; });
+    });
   }
 
   Future<void> _retry() async {
-    await NfcManager.instance.stopSession().catchError((_) {});
-    setState(() { _state = _ScanState.waiting; _tagInfo = null; _errorMessage = null; });
-    await _startSession();
+    _startListening();
   }
 
   void _confirmTag() {
@@ -102,7 +62,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     Navigator.pop(context, _tagInfo!.uid);
   }
 
-  // â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Build ────────────────────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +95,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     );
   }
 
-  // â”€â”€â”€ Waiting / error view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Waiting / error view ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildWaitingView() {
     final isError = _state == _ScanState.error;
@@ -200,7 +160,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     );
   }
 
-  // â”€â”€â”€ Detected view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Detected view ────────────────────────────────────────────────────────────────────────────────
 
   Widget _buildDetectedView() {
     final tag = _tagInfo!;
@@ -232,30 +192,6 @@ class _NfcScanScreenState extends State<NfcScanScreen>
                   value: tag.uid,
                   highlight: true,
                 ),
-                if (tag.techList.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _infoCard(
-                    icon: Icons.layers_outlined,
-                    title: 'Technologies Available',
-                    value: tag.techList.join(', '),
-                  ),
-                ],
-                if (tag.tagType != null) ...[
-                  const SizedBox(height: 10),
-                  _infoCard(
-                    icon: Icons.label_outline,
-                    title: 'Tag Type',
-                    value: tag.tagType!,
-                  ),
-                ],
-                if (tag.atqa != null) ...[
-                  const SizedBox(height: 10),
-                  _infoCard(icon: Icons.memory_outlined, title: 'ATQA', value: tag.atqa!),
-                ],
-                if (tag.sak != null) ...[
-                  const SizedBox(height: 10),
-                  _infoCard(icon: Icons.memory_outlined, title: 'SAK', value: tag.sak!),
-                ],
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -352,69 +288,14 @@ class _NfcScanScreenState extends State<NfcScanScreen>
   }
 }
 
-// â”€â”€â”€ Tag info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tag info ──────────────────────────────────────────────────────────────────────────────────────
 
 class _TagInfo {
   final String uid;
-  final List<String> techList;
-  final String? tagType;
-  final String? atqa;
-  final String? sak;
-
-  const _TagInfo({
-    required this.uid,
-    required this.techList,
-    this.tagType,
-    this.atqa,
-    this.sak,
-  });
-
-  static _TagInfo fromTag(NfcTag tag) {
-    final androidTag = NfcTagAndroid.from(tag);
-
-    String? tagType;
-    String? atqa;
-    String? sakStr;
-
-    // ISO 14443-3A â€” most NFC stickers and cards
-    final nfca = NfcAAndroid.from(tag);
-    if (nfca != null) {
-      final a = nfca.atqa;
-      if (a.length >= 2) {
-        final val = (a[1] << 8) | a[0];
-        atqa = '0x${val.toRadixString(16).padLeft(4, '0').toUpperCase()}';
-      }
-      sakStr = '0x${nfca.sak.toRadixString(16).padLeft(2, '0').toUpperCase()}';
-      tagType = 'ISO 14443-3A';
-    }
-
-    if (NfcBAndroid.from(tag) != null)    tagType ??= 'ISO 14443-3B';
-    if (NfcFAndroid.from(tag) != null)    tagType ??= 'JIS 6319-4 (FeliCa)';
-    if (NfcVAndroid.from(tag) != null)    tagType ??= 'ISO 15693';
-    if (IsoDepAndroid.from(tag) != null)  tagType ??= 'ISO-DEP';
-
-    final uid = (androidTag != null && androidTag.id.isNotEmpty)
-        ? androidTag.id
-            .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-            .join(':')
-        : 'Unknown';
-
-    // Strip "android.nfc.tech." prefix for readable display
-    final techs = androidTag?.techList
-        .map((t) => t.replaceFirst('android.nfc.tech.', ''))
-        .toList() ?? [];
-
-    return _TagInfo(
-      uid: uid,
-      techList: techs,
-      tagType: tagType,
-      atqa: atqa,
-      sak: sakStr,
-    );
-  }
+  const _TagInfo({required this.uid});
 }
 
-// â”€â”€â”€ Animated waiting dots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Animated waiting dots ─────────────────────────────────────────────────────────────────────────
 
 class _WaitingDots extends StatefulWidget {
   @override
@@ -458,5 +339,3 @@ class _WaitingDotsState extends State<_WaitingDots> {
     );
   }
 }
-
-

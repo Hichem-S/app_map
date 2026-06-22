@@ -4,9 +4,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
 import '../models/department.dart';
+import '../models/room.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_l10n.dart';
 import 'dept_rooms_screen.dart';
+import 'room_items_screen.dart';
 import 'product_detail_screen.dart';
 import 'maintenance_screen.dart';
 import 'rfid_screen.dart';
@@ -75,13 +77,15 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   String _formatTime(String iso) {
-    final dt = DateTime.tryParse(iso)?.toLocal();
-    if (dt == null) return '';
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    final local = DateTime.tryParse(iso)?.toLocal();
+    if (local == null) return '';
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   }
 
   @override
@@ -137,8 +141,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
       // â”€â”€ ISET hierarchical QR codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (trimmed == 'ISET://institution') {
-        setState(() { _isSearching = false; _scanned = false; });
-        if (mounted) Navigator.pushNamed(context, '/vueinstitut');
+        setState(() { _isSearching = false; _scanned = false; _processing = false; });
+        if (mounted) {
+          Navigator.pushNamed(context, '/vueinstitut').then((_) => _resumeCamera());
+        }
         return;
       }
 
@@ -146,21 +152,51 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         final code = trimmed.substring('ISET://dept/'.length).trim();
         setState(() { _isSearching = false; _scanned = false; });
         if (!mounted) return;
-        // Load departments to find the one matching this code
         final depts = await ApiService.getDepartments();
         final match = depts.cast<Map<String, dynamic>>()
             .where((d) => d['code'] == code)
             .toList();
         if (match.isEmpty) {
           _snack('Department "$code" not found');
+          setState(() => _processing = false);
+          _resumeCamera();
           return;
         }
         if (mounted) {
+          setState(() => _processing = false);
           Navigator.push(context, MaterialPageRoute(
-            builder: (_) => DeptRoomsScreen(
-              department: Department.fromJson(match.first),
-            ),
-          ));
+            builder: (_) => DeptRoomsScreen(department: Department.fromJson(match.first)),
+          )).then((_) => _resumeCamera());
+        }
+        return;
+      }
+
+      if (trimmed.startsWith('ISET://room/')) {
+        final roomId = trimmed.substring('ISET://room/'.length).trim();
+        setState(() { _isSearching = false; _scanned = false; });
+        if (!mounted) return;
+        final res = await ApiService.getRoom(roomId);
+        if (res['success'] != true || res['data'] == null) {
+          _snack('Room not found');
+          setState(() => _processing = false);
+          _resumeCamera();
+          return;
+        }
+        final data = res['data'] as Map<String, dynamic>;
+        final room = Room.fromJson(data);
+        final dept = Department(
+          id:           data['department_id'] as String,
+          name:         data['department_name'] as String,
+          code:         data['department_code'] as String,
+          color:        data['department_color'] as String? ?? '#6C63FF',
+          roomCount:    0,
+          productCount: 0,
+        );
+        if (mounted) {
+          setState(() => _processing = false);
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => RoomItemsScreen(room: room, department: dept),
+          )).then((_) => _resumeCamera());
         }
         return;
       }
@@ -239,7 +275,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Future<void> _resumeCamera() async {
-    setState(() { _scanError = null; _cameraActive = true; });
+    if (!mounted) return;
+    setState(() { _scanError = null; _cameraActive = true; _processing = false; _scanned = false; });
     await _cameraController.start();
   }
 
@@ -430,6 +467,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                   final code = b.rawValue ?? b.displayValue;
                   if (code != null && code.isNotEmpty) {
                     _processing = true;
+                    _cameraController.stop();
                     _onQRDetected(code);
                   }
                 },

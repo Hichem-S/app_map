@@ -35,7 +35,7 @@ class AppNotification {
         productName: j['product_name'] as String?,
         fromRoom:    j['from_room'] as String?,
         toRoom:      j['to_room'] as String?,
-        createdAt:   DateTime.parse(j['created_at'] as String),
+        createdAt:   DateTime.parse(j['created_at'] as String).toLocal(),
         isRead:      j['is_read'] as bool? ?? false,
       );
 }

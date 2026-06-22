@@ -481,6 +481,11 @@ class _RoomItemsScreenState extends State<RoomItemsScreen> {
                       ),
                     ),
                     IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                      tooltip: 'Scan QR / Barcode',
+                      onPressed: () => Navigator.pushNamed(context, '/qrscanner'),
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.refresh, color: Colors.white),
                       onPressed: _load,
                     ),

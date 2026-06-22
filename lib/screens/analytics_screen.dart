@@ -230,10 +230,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             bottomTitles: AxisTitles(sideTitles: SideTitles(
-              showTitles: true, reservedSize: 24,
+              showTitles: true, reservedSize: 24, interval: 1,
               getTitlesWidget: (val, _) {
-                final i = val.toInt();
+                final i = val.round();
                 if (i < 0 || i >= trend.length) return const SizedBox.shrink();
+                if (val != i.toDouble()) return const SizedBox.shrink();
                 return Text(trend[i]['month'] as String,
                     style: const TextStyle(fontSize: 9, color: AppColors.textMuted));
               },

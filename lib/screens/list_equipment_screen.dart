@@ -61,9 +61,9 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
       if (!mounted) return;
       final rawList = res['data'] as List<dynamic>? ?? [];
       final rows = rawList.map((r) => Product.fromJson(r as Map<String, dynamic>)).toList();
-      await OfflineCacheService.cacheProducts(rawList);
       setState(() { _all = rows; _loading = false; });
       _applyFilter();
+      OfflineCacheService.cacheProducts(rawList).catchError((_) {});
     } catch (_) {
       // Fallback to cache
       try {
@@ -167,6 +167,22 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
     ));
   }
 
+  Widget _iconAction({required IconData icon, required String label, required Color color, VoidCallback? onPressed}) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 18, color: onPressed == null ? color.withOpacity(0.3) : color),
+        Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: onPressed == null ? color.withOpacity(0.3) : color)),
+      ]),
+    );
+  }
+
   Widget _statCard(String label, int count, Color color, Color bg, IconData icon) {
     return Expanded(
       child: Container(
@@ -258,37 +274,36 @@ class _ListEquipmentScreenState extends State<ListEquipmentScreen> {
           if (_selectMode)
             Container(
               color: AppColors.primary.withOpacity(0.07),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(children: [
                 Icon(Icons.check_box_rounded, size: 16, color: AppColors.primary),
                 const SizedBox(width: 6),
                 Text('${_selected.length} selected', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
                 const Spacer(),
-                TextButton.icon(
+                // Compare
+                _iconAction(
+                  icon: Icons.compare_arrows_rounded,
+                  label: 'Compare',
+                  color: AppColors.primary,
                   onPressed: _selected.length >= 2 ? _compareSelected : null,
-                  icon: const Icon(Icons.compare_arrows_rounded, size: 16),
-                  label: const Text('Compare', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 ),
-                const SizedBox(width: 4),
+                // QR
                 _downloadingQR
-                    ? const SizedBox(width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                    : TextButton.icon(
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                    : _iconAction(
+                        icon: Icons.qr_code_rounded,
+                        label: 'QR',
+                        color: AppColors.primary,
                         onPressed: _selected.isNotEmpty ? _downloadQRSheet : null,
-                        icon: const Icon(Icons.qr_code_rounded, size: 16),
-                        label: const Text('QR', style: TextStyle(fontSize: 12)),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                       ),
-                const SizedBox(width: 2),
+                // Labels
                 _downloadingBarcode
-                    ? const SizedBox(width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C3AED)))
-                    : TextButton.icon(
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C3AED)))
+                    : _iconAction(
+                        icon: Icons.barcode_reader,
+                        label: 'Labels',
+                        color: const Color(0xFF7C3AED),
                         onPressed: _selected.isNotEmpty ? _downloadBarcodeSheet : null,
-                        icon: const Icon(Icons.barcode_reader, size: 16),
-                        label: const Text('Labels', style: TextStyle(fontSize: 12)),
-                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF7C3AED)),
                       ),
               ]),
             ),
@@ -648,12 +663,13 @@ class _EquipmentRowState extends State<_EquipmentRow> {
     setState(() => _deleting = true);
     try {
       await ApiService.deleteProduct(widget.product.id);
-      widget.onDeleted();
+      if (mounted) widget.onDeleted();
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
-        setState(() => _deleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
       }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 

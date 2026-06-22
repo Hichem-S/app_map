@@ -15,9 +15,9 @@ class AuthProvider extends ChangeNotifier {
   /// Only magazinier physically adds stock
   bool get canAddProduct    => isMagazinier;
 
-  /// Admin + magazinier can edit and delete; only admin + technicien can change status
+  /// Admin + magazinier can edit; only magazinier can delete
   bool get canEditProduct   => isAdmin || isMagazinier;
-  bool get canDeleteProduct => isAdmin || isMagazinier;
+  bool get canDeleteProduct => isMagazinier;
   bool get canChangeStatus  => isAdmin || isTechnicien;
 
   /// Admin + technicien see 2D/3D maps and can place equipment
@@ -25,6 +25,12 @@ class AuthProvider extends ChangeNotifier {
 
   /// Reports tab visible to admin + technicien; hidden for magazinier
   bool get canViewReports => isAdmin || isTechnicien;
+
+  /// IoT features — RFID, BLE, tracker, move log, maintenance (blocked for magazinier)
+  bool get canViewIoT         => isAdmin || isTechnicien;
+  bool get canViewTracker     => isAdmin || isTechnicien;
+  bool get canViewMaintenance => isAdmin || isTechnicien;
+  bool get canViewMoveLog     => isAdmin || isTechnicien;
 
   /// User management — admin only
   bool get canManageUsers => isAdmin;

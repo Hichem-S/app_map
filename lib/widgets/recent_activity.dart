@@ -37,14 +37,15 @@ class _RecentActivityState extends State<RecentActivity> {
 
   String _timeAgo(String? raw) {
     if (raw == null) return '';
-    final dt = DateTime.tryParse(raw);
-    if (dt == null) return '';
-    final diff = DateTime.now().difference(dt.toLocal());
-    if (diff.inMinutes < 1)  return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24)   return '${diff.inHours}h ago';
-    if (diff.inDays < 7)     return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final local = DateTime.tryParse(raw)?.toLocal();
+    if (local == null) return '';
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day   = DateTime(local.year, local.month, local.day);
+    final hm    = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hm;
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday $hm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hm';
   }
 
   @override
